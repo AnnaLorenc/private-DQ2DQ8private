@@ -1,0 +1,1011 @@
+1.Created the original samples' names list, and the samplesheet template. lib/create_samplesheet.sh. Output in data
+
+2. Metadata wrangling with bin/prepare_individual_names.py. Output in data
+
+3. Joined cell and genotype information with bin/collate_info.py. Output in data/collated_info.csv
+
+4. Installed pip install lymphoseq https://lymphoseq.readthedocs.io/en/latest/installation.html
+Cleaned the seqs: removed the suspected sequences, kept only those with vGeneFamily and Jgene available.
+split into productive and not productivewith lymphoseq_readin.py
+
+5.;compute diversity etc with bin/extract_diversity_metrics.py
+6.;Frequencies of V/J genes, CDR3 lengths, etc with bin/compute_freqs.py
+collected diversities
+collected frequencies
+
+7.PCA
+WHY DIFFERENT!!!!! on subsamples not different
+
+8. prepared subsamples of productive subsamples - 10000; V, J, family level; as AA
+computed frequencies on those and collected them in a single file with combine_freqs_subsampled.nf and bin/combine_freqs_subsampled.py
+
+9. sharing of CDR3+V pairwise between samples 
+computed for productive sequences, and for subsampled productive sequences, with bin/compute_overlaps_c.py and bin/compute_overlaps_subs.py
+
+10.
+CDR3 sequences: to IMGT system
+frequency of AAs acros positions and lengths
+Computed for each original sample and subsamples with bin/imgt_freqs.py, then median for subsamples available with compute_medians.py
+
+11.
+reshaped/added anno data for testing with prepare_for_imgt_test.py, then run the test with test_imgt.py. With/without length
+
+12
+substitute AAs by their properties (charge, hydrophobicity, etc) and do the same analyses as above for IMGT
+PARTIAL, needs adding to nextflow. Hotteling T
+
+
+======
+next steps to recode:
+
+
+1. SHORT
+substitute AAs by their properties (charge, hydrophobicity, etc) and do the same analyses as above for IMGT
+
+3. WHOLE DAY
+public sequences
+rarefaction approach (on subsamples and how ofteh shared)
+fraction of rarefactions where present in ≥ N individuals
+Publicity score=fraction of rarefactions where present in ≥ N individuals
+Then define:
+Public = publicity score ≥ threshold (e.g., 0.9)
+ and bayesian approach (public_bayesian.py)
+extract public sequences, compute their frequencies of extreme aminoacids
+
+2. WHOLE DAY x 2
+paper figures - transplant to this environment
+
+5. WHOLE DAY
+for nonproductive sequences:
+CDR3 sequences: to IMGT system
+frequency of AAs acros positions and lengths
+
+4. DeepTCR
+2 DAYS
+
+
+====
+├── cleanup // cleaned files for each sample, prepared by clean_seqs.nf - per sample. column names, split into productive an d nonproductive, removal of contaminating sequences, uniform names. read_sheet.nf
+│   ├── F15625E
+├── combined_freqs  //  combined frequencies of V/J genes, CDR3 lengths, etc. for all samples together, prepared by combine_freqs.nf and combine_freqs_subsampled.nf.
+│   ├── combined_nonproductive_freqs.csv
+│   ├── combined_productive_diversity_metrics.csv
+│   ├── combined_productive_freqs.csv
+│   └── productive_subs_freqs.tsv.tsv
+├── combined_metrics  // combined diversity metrics for all samples, prepared by combine_diversity_metrics.nf - for all samples together.
+│   ├── combined_nonproductive_diversity_metrics.csv
+│   └── combined_productive_diversity_metrics.csv
+├── diversity_metrics // diversity metrics for each sample, prepared by extract_diversity_metrics.nf - per sample.
+│   ├── F15625E 
+├── freqs // frequencies of V/J genes, CDR3 lengths, etc. Prepared by compute_freqs.nf - per sample.
+│   ├── F15625E
+├── freqs_subsampled // frequencies of V/J genes, CDR3 lengths, etc. Prepared by compute_freqs_subsampled.nf - per sample, on subsampled data.
+│   └── productive
+├── merged. // database like: merged files for productive sequences, with amino acid CDR3s, V family and J gene names (as indicated in the name). Prepared by merge_lymphoseq_files.nf
+│   ├── merged_aminoAcid_vFamilyName_jGeneName_productive.tsv
+│   ├── merged_aminoAcid_vFamilyName_jGeneName_productive.tsv.gz
+│   └── merged_aminoAcid_vFamilyName_productive.tsv.gz
+├── runInfo
+│   ├── dag.svg
+│   ├── report.html
+│   ├── timeline.html
+│   └── trace.txt
+└── subsampled  // subsampled files for productive sequences, with amino acid CDR3s, V family and J gene names. Prepared by subsample_from_merged.nf
+    └── productive
+
+104: Conserved cysteine from V gene — germline encoded.
+
+105–107: V gene contribution — mostly germline, sometimes trimmed.
+
+108–111: V-D junction — heavily influenced by N-insertions (TdT) and palindromic nucleotides (P-nucleotides). This is the first main region of non-templated diversity.
+
+112–115: D gene segment — germline-derived.
+
+116–117: D-J junction — again dominated by N-insertions; second main source of non-templated diversity.
+
+118: Conserved phenylalanine (F), tryptophan (W), or tyrosine (Y) from J gene — germline encoded.
+
+✅ Key takeaway:
+
+Non-templated indels are concentrated at junctions: 108–111 and 116–117.
+
+Germline sequences dominate the ends (104–107 V, 112–115 D, 118 J).
+
+
+######Modeling
+
+Core Problem
+
+Let:
+
+𝐷
+𝑖
+D
+i
+	​
+
+ = total productive TRB templates in individual i
+
+𝑓
+𝑖
+𝑗
+f
+ij
+	​
+
+ = true frequency of clonotype j in individual i
+
+Detection probability:
+
+𝑃
+(
+observed
+)
+=
+1
+−
+(
+1
+−
+𝑓
+𝑖
+𝑗
+)
+𝐷
+𝑖
+P(observed)=1−(1−f
+ij
+	​
+
+)
+D
+i
+	​
+
+
+Lower depth → higher false negatives for rare clones.
+
+So naive rule:
+
+“Sequence observed in ≥ N individuals”
+
+is biased toward:
+
+Deeply sequenced samples
+
+High-frequency clones
+
+✅ Recommended Approaches
+1️⃣ Depth-Standardized Presence via Repeated Rarefaction (Most Robust)
+
+Instead of one subsample, do:
+
+Rarefy each repertoire to the same depth (minimum depth across samples)
+
+Repeat K times (e.g., 100–500)
+
+For each clonotype, compute:
+
+Publicity score
+=
+fraction of rarefactions where present in ≥ N individuals
+Publicity score=fraction of rarefactions where present in ≥ N individuals
+
+Then define:
+
+Public = publicity score ≥ threshold (e.g., 0.9)
+
+Why this works
+
+Equalizes detection probability
+
+Preserves sequence identity
+
+Avoids arbitrary single subsample loss
+
+This is the most principled practical solution.
+
+2️⃣ Model-Based Detection Probability (Statistically Clean)
+
+Instead of subsampling, adjust by modeling detection probability.
+
+For clonotype j:
+
+𝑃
+𝑖
+𝑗
+=
+1
+−
+(
+1
+−
+𝑓
+𝑖
+𝑗
+)
+𝐷
+𝑖
+P
+ij
+	​
+
+=1−(1−f
+ij
+	​
+
+)
+D
+i
+	​
+
+
+Estimate:
+
+True sharing rate accounting for detection probability.
+
+Use a beta-binomial or hierarchical model.
+
+You compute:
+
+𝑃
+(
+truly shared in ≥ N
+)
+=
+posterior probability
+P(truly shared in ≥ N)=posterior probability
+
+This is statistically optimal but more complex.
+
+Best when:
+
+Publishing
+
+Working with large cohorts
+
+3️⃣ Frequency Thresholding Before Presence Call
+
+Define clonotype as present in sample i only if:
+
+𝑓
+𝑖
+𝑗
+≥
+𝑐
+𝐷
+𝑖
+f
+ij
+	​
+
+≥
+D
+i
+	​
+
+c
+	​
+
+
+where c = minimal molecule count (e.g., 2–3 templates).
+
+This removes singletons in deep samples dominating public calls.
+
+Better than naive presence, but still imperfect.
+
+4️⃣ Presence Probability Weighting
+
+For each clonotype:
+
+Adjusted sharing score
+=
+∑
+𝑖
+observed
+𝑖
+𝑗
+𝑃
+𝑖
+𝑗
+Adjusted sharing score=
+i
+∑
+	​
+
+P
+ij
+	​
+
+observed
+ij
+	​
+
+	​
+
+
+Downweights high-depth detection bias.
+
+Less common but mathematically defensible.
+
+🚫 What Not To Do
+
+❌ Raw presence count
+
+❌ Raw frequency threshold across all samples
+
+❌ Single rarefaction only
+
+🎯 What I Would Recommend
+
+Given your workflow (already subsampling other metrics):
+
+✔ Use repeated rarefaction
+
+Subsample all repertoires to the same depth
+
+200 iterations
+
+Compute robustness of sharing
+
+You retain exact CDR3 sequences while correcting for depth.
+
+🧠 Additional Important Considerations
+Define clonotype identity carefully:
+
+AA CDR3 only?
+
+AA + V gene?
+
+Nucleotide?
+
+Publicness depends strongly on this.
+
+Consider generation probability (Pgen)
+
+Using models like OLGA:
+
+High-Pgen sequences are expected to be public
+
+You can compare observed sharing vs expected sharing
+
+📊 Practical Workflow
+
+Filter non-productive TRB
+
+Define clonotype key (e.g., CDR3aa + TRBV + TRBJ)
+
+Remove singletons (optional)
+
+Rarefy to min depth
+
+Repeat 200×
+
+Compute:
+
+Number of individuals sharing
+
+Stability of sharing across iterations
+
+####
+Below is a fully implementable Python solution (PyMC v5) for:
+
+Step 4 — Fit hierarchical detection model
+
+Step 5 — Compute posterior probability that a clonotype is shared in ≥ N individuals
+
+Step 6 — Perform robustness / sensitivity checks
+
+This version is:
+
+Statistically principled
+
+Computationally tractable for ~10⁴–10⁵ clonotypes (batched)
+
+Explicitly depth-corrected
+
+Publication-ready
+
+🔬 MODEL STRUCTURE (Computationally Practical Version)
+
+We use an occupancy model with imperfect detection (ecology framework adapted to TCRs).
+
+For clonotype j in individual i:
+
+𝑌
+𝑖
+𝑗
+∈
+{
+0
+,
+1
+}
+Y
+ij
+	​
+
+∈{0,1} observed presence
+
+𝑍
+𝑖
+𝑗
+∈
+{
+0
+,
+1
+}
+Z
+ij
+	​
+
+∈{0,1} latent true presence
+
+Detection probability:
+
+𝑝
+𝑖
+=
+1
+−
+(
+1
+−
+𝑓
+ˉ
+)
+𝐷
+𝑖
+p
+i
+	​
+
+=1−(1−
+f
+ˉ
+	​
+
+)
+D
+i
+	​
+
+
+We treat detection probability as depth-dependent only
+(you can later extend with clone-specific frequency model).
+
+🧠 Simplified but Rigorous Hierarchical Model
+𝑍
+𝑖
+𝑗
+∼
+𝐵
+𝑒
+𝑟
+𝑛
+𝑜
+𝑢
+𝑙
+𝑙
+𝑖
+(
+𝜋
+𝑗
+)
+Z
+ij
+	​
+
+∼Bernoulli(π
+j
+	​
+
+)
+𝑌
+𝑖
+𝑗
+∼
+𝐵
+𝑒
+𝑟
+𝑛
+𝑜
+𝑢
+𝑙
+𝑙
+𝑖
+(
+𝑍
+𝑖
+𝑗
+⋅
+𝑝
+𝑖
+)
+Y
+ij
+	​
+
+∼Bernoulli(Z
+ij
+	​
+
+⋅p
+i
+	​
+
+)
+𝜋
+𝑗
+∼
+𝐵
+𝑒
+𝑡
+𝑎
+(
+𝑎
+,
+𝑏
+)
+π
+j
+	​
+
+∼Beta(a,b)
+
+We marginalize over 
+𝑍
+𝑖
+𝑗
+Z
+ij
+	​
+
+ to avoid discrete sampling.
+
+Marginal likelihood:
+
+𝑃
+(
+𝑌
+𝑖
+𝑗
+=
+1
+)
+=
+𝜋
+𝑗
+𝑝
+𝑖
+P(Y
+ij
+	​
+
+=1)=π
+j
+	​
+
+p
+i
+	​
+
+𝑃
+(
+𝑌
+𝑖
+𝑗
+=
+0
+)
+=
+1
+−
+𝜋
+𝑗
+𝑝
+𝑖
+P(Y
+ij
+	​
+
+=0)=1−π
+j
+	​
+
+p
+i
+	​
+
+📦 Python Implementation (PyMC v5)
+import numpy as np
+import pymc as pm
+import arviz as az
+
+
+def fit_public_model(
+    Y_matrix: np.ndarray,      # shape (n_clones, n_individuals)
+    depths: np.ndarray,        # shape (n_individuals,)
+    min_shared: int = 3,
+    draws: int = 2000,
+    tune: int = 2000,
+    target_accept: float = 0.9,
+):
+    """
+    Bayesian occupancy model correcting for sequencing depth.
+
+    Returns:
+        posterior object
+        probability each clone is shared in >= min_shared individuals
+    """
+
+    n_clones, n_individuals = Y_matrix.shape
+
+    # Depth-based detection probability
+    # small pseudo-frequency assumption
+    f_bar = 1e-5
+    p_detect = 1 - (1 - f_bar) ** depths
+    p_detect = np.clip(p_detect, 1e-6, 1 - 1e-6)
+
+    with pm.Model() as model:
+
+        # Hyperprior for sharing probability
+        a = pm.Exponential("a", 1.0)
+        b = pm.Exponential("b", 1.0)
+
+        # Clone-level true presence probability
+        pi = pm.Beta("pi", alpha=a, beta=b, shape=n_clones)
+
+        # Detection probability per individual
+        p = pm.Data("p", p_detect)
+
+        # Marginalized likelihood
+        prob_obs = pi[:, None] * p[None, :]
+        prob_obs = pm.math.clip(prob_obs, 1e-9, 1 - 1e-9)
+
+        Y = pm.Bernoulli(
+            "Y",
+            p=prob_obs,
+            observed=Y_matrix
+        )
+
+        trace = pm.sample(
+            draws=draws,
+            tune=tune,
+            target_accept=target_accept,
+            chains=4,
+            cores=4,
+        )
+
+    # ---- Step 5: Compute probability shared >= N ----
+
+    pi_samples = trace.posterior["pi"].values  # shape: chains, draws, clones
+    pi_samples = pi_samples.reshape(-1, n_clones)
+
+    prob_shared = []
+
+    for j in range(n_clones):
+        # For each posterior sample, simulate sharing count
+        shared_counts = np.random.binomial(
+            n_individuals,
+            pi_samples[:, j]
+        )
+        prob = np.mean(shared_counts >= min_shared)
+        prob_shared.append(prob)
+
+    prob_shared = np.array(prob_shared)
+
+    return trace, prob_shared
+
+📊 Calling Public Clones (Step 5)
+trace, prob_shared = fit_public_model(Y_matrix, depths, min_shared=5)
+
+public_mask = prob_shared >= 0.95
+public_clones = np.where(public_mask)[0]
+
+
+This yields:
+
+Posterior sharing probability per clone
+
+Robust classification
+
+🧪 Step 6 — Validation & Sensitivity
+6.1 Prior Sensitivity
+
+Re-run with:
+
+a = pm.Exponential("a", 0.5)
+b = pm.Exponential("b", 0.5)
+
+
+Compare posterior public clone set.
+
+6.2 Compare with Rarefaction
+
+Perform:
+
+200 subsampling runs
+
+Compare overlap with Bayesian calls
+
+Report:
+
+𝐽
+𝑎
+𝑐
+𝑐
+𝑎
+𝑟
+𝑑
+ 
+𝑖
+𝑛
+𝑑
+𝑒
+𝑥
+=
+∣
+𝐴
+∩
+𝐵
+∣
+∣
+𝐴
+∪
+𝐵
+∣
+Jaccard index=
+∣A∪B∣
+∣A∩B∣
+	​
+
+6.3 Posterior Predictive Check
+with model:
+    ppc = pm.sample_posterior_predictive(trace)
+
+
+Verify:
+
+Observed sharing distribution
+
+Model-generated sharing distribution
+
+They should align.
+
+🧬 What This Model Corrects
+
+✔ Variable depth
+✔ False negatives in shallow repertoires
+✔ Overcalling due to deep repertoires
+✔ Provides uncertainty
+
+⚠ Important Assumption
+
+This version assumes:
+
+Detection probability depends only on depth
+
+Clone frequency distribution is similar across individuals
+
+We fit a hierarchical occupancy model correcting for depth-dependent detection probability. Public clonotypes were defined as those with posterior probability ≥0.95 of being present in at least N individuals.
+
+I have TRB repertoires from 3 groups of individuals. I would like to build a ML model which would find  how these groups differ in their TRB repertoires. Sharing sequences are not very probable, but should be an option; I suspect it is more about specific aminoacid properties of these sequences. What modelling would be appropriate and state of the art, for publication?
+
+Got it — you’re essentially asking about ML models for TCR repertoire classification (multi-group) based on TRB sequences, where exact sequence sharing is rare, and you suspect differences are biophysical/structural properties of the CDR3 sequences. I can break this down carefully.
+
+1️⃣ Key characteristics of your problem
+Feature	Notes
+Data	TRB repertoires from 3 groups (healthy, disease, etc.)
+Sequence sharing	Rare → k-mer or motif approaches may be sparse
+Signal type	Likely physicochemical / biochemical patterns in CDR3
+Task	Multi-class classification (3 groups)
+Goal	Identify repertoire-level patterns, publishable insights
+
+So your problem is repertoire-level supervised learning with sparse, structured sequence data.
+
+2️⃣ Representation options for TCR sequences
+
+The representation of TRB sequences is crucial:
+
+a) Amino acid / physicochemical embeddings
+
+Encode CDR3 sequences into vectors:
+
+One-hot encoding of AAs
+
+AA indices: hydrophobicity, charge, polarity, size
+
+Biochemical property vectors: e.g., from Kidera or Atchley factors
+
+Pros: captures biochemical similarity beyond exact sequence
+
+Cons: sequences of variable length → need padding, masking, or summarization
+
+b) k-mer / motif features
+
+Break CDR3 into overlapping k-mers (e.g., k=3–5)
+
+Count/frequency table per repertoire
+
+Pros: handles sequence variability
+
+Cons: sparse, high dimensionality
+
+c) Learned embeddings from pre-trained models
+
+TCR-specific language models:
+
+TCR-BERT, DeepTCR embeddings
+
+ELMo, ProtBert, UniRep (protein language models)
+
+Encode sequences into fixed-size embeddings, then aggregate per repertoire
+
+Pros: state-of-the-art; captures sequence context, physicochemical properties
+
+d) Repertoire-level aggregation
+
+Because your labels are per individual / repertoire, not per sequence:
+
+Sum / mean of sequence embeddings
+
+Attention-based weighted pooling (DeepTCR / TCR-BERT)
+
+Spectral clustering or bag-of-sequences approaches
+
+3️⃣ Modelling approaches
+a) Classical ML
+
+Use aggregated features per repertoire (k-mer counts, AA property summaries)
+
+Models:
+
+Random Forest
+
+Gradient Boosted Trees (XGBoost, LightGBM)
+
+SVM
+
+Pros: interpretable, fast
+
+Cons: may lose sequence context
+
+b) Deep learning
+
+Sequence-based neural networks:
+
+CNNs over AA sequences
+
+1D convolutions over one-hot or embedded sequences
+
+Capture local motifs
+
+Pool across sequences → repertoire-level
+
+Recurrent Neural Networks (RNNs / LSTM / GRU)
+
+Process sequences of variable length
+
+Pool hidden states per repertoire
+
+Attention / Transformers
+
+DeepTCR and TCR-BERT use transformers
+
+Attention allows learning which sequences or motifs contribute most
+
+c) Repertoire-level methods
+
+Some modern methods treat the repertoire as a bag of sequences:
+
+DeepTCR (Sidhom et al., 2021, Nat Methods
+)
+
+Uses sequence embeddings + attention
+
+Can perform classification, motif discovery, repertoire-level prediction
+
+Handles rare sequence sharing well
+
+tessa / immuneML (https://github.com/airlab-unibas/immuneML
+)
+
+ML framework for TCR/BCR repertoires
+
+Supports k-mer, motif, and deep learning features
+
+Multi-class classification
+
+GLIPH2 (https://pubmed.ncbi.nlm.nih.gov/31987047/
+)
+
+Clustering CDR3 sequences by motifs
+
+Then ML on motif counts per repertoire
+
+d) Graph-based / network approaches
+
+Build sequence similarity networks
+
+Node = unique CDR3, edge = biochemical similarity
+
+Compute graph metrics per repertoire → classical ML
+
+4️⃣ Practical workflow for publication-quality analysis
+
+Preprocessing
+
+Filter low-quality sequences
+
+Trim/pad CDR3 sequences
+
+Annotate V/J genes
+
+Feature representation
+
+Option 1: k-mer counts / AA property summaries → classical ML
+
+Option 2: Pre-trained embeddings → deep learning / attention
+
+Option 3: Hybrid: k-mer + physicochemical features
+
+Aggregate per individual
+
+Mean/sum of embeddings
+
+Attention-weighted aggregation (DeepTCR style)
+
+Model training
+
+Random forest / XGBoost → baseline
+
+Deep learning with attention → state-of-the-art
+
+Evaluation
+
+Multi-class accuracy / ROC-AUC per class
+
+Cross-validation across individuals
+
+Test generalization on held-out repertoires
+
+Interpretation
+
+Feature importance (for k-mers / AA properties)
+
+Attention weights → motifs driving classification
+
+Compare group differences in repertoire diversity / motifs
+
+5️⃣ References / State-of-the-art
+Method	Notes
+DeepTCR	Attention-based classification and motif discovery from TCR repertoires
+immuneML	Framework for classical ML & deep learning on immune repertoires
+TCR-BERT / ProtBERT	Embeddings from protein language models
+GLIPH2	Motif-based clustering; downstream ML on motif counts
+Random Forest / XGBoost	Strong baseline on k-mer / physicochemical features
+6️⃣ Key recommendations
+
+Do not rely on exact sequence sharing — your representation must generalize to unseen sequences.
+
+AA properties and embeddings are more powerful than raw k-mers.
+
+Attention or pooling is essential for per-repertoire labels.
+
+Baseline classical ML helps with interpretability and review expectations.
+
+If you want, I can draft a concrete pipeline for your 3-group TRB repertoires:
+
+Preprocessing
+
+Feature engineering (AA properties + k-mer + embeddings)
+
+ML model (classical + DeepTCR style)
+
+Repertoire-level aggregation
+
+Cross-validation & feature interpretation
+
+DeepTCRhttps://github.com/sidhomj/DeepTCR.git
