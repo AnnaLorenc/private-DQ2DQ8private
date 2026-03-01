@@ -30,17 +30,31 @@ Computed for each original sample and subsamples with bin/imgt_freqs.py, then me
 11.
 reshaped/added anno data for testing with prepare_for_imgt_test.py, then run the test with test_imgt.py. With/without length
 
-12
+12.
 substitute AAs by their properties (charge, hydrophobicity, etc) and do the same analyses as above for IMGT
 PARTIAL, needs adding to nextflow. Hotteling T
 
+13. Sharing, public clonotypes.
+Bayesian approach just not feasible by the way Ibwas trying, going for rarefaction approach
+rare_publicity.py - needs as input group specification, prepared with make_groups_yml.py 
 
+awk -F',' 'NR==1 || $3=="E"' data/collated_info.csv | \
+    python ./sandbox/rare/make_groups_yml.py \
+        --group_col genotype_short \
+        --sample_col sample_short \
+        --output groups_E.yml \
+        --rename "heteroDQ2DQ8=hete,homoDQ8=DQ8,homoDQ2=DQ2"
+
+# Groups from a YAML file (--samples derived automatically as union of groups):
+python rare_publicity.py \
+    --input  /Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/merged/merged_aminoAcid_vFamilyName_jGeneName_productive.tsv.gz\
+    --K 200 --M 10000 \
+    --groups_file groups_E.yml \
+    --output results/rare_groupE_K200_M10000.tsv
 ======
 next steps to recode:
 
 
-1. SHORT
-substitute AAs by their properties (charge, hydrophobicity, etc) and do the same analyses as above for IMGT
 
 3. WHOLE DAY
 public sequences
@@ -111,6 +125,19 @@ Non-templated indels are concentrated at junctions: 108–111 and 116–117.
 
 Germline sequences dominate the ends (104–107 V, 112–115 D, 118 J).
 
+
+######### test files
+python bin/imgt_freqs.py \
+  --input sandbox/test_inputs/imgt_freqs/F5302E_subsampled_test.tsv \
+  --output sandbox/test_inputs/imgt_freqs/res/res 
+
+
+# combine_and_extract
+python bin/combine_and_extract_imgt_freqs.py \
+  --input_files sandbox/test_inputs/combine_and_extract_imgt_freqs/F10001E_freq.tsv \
+                sandbox/test_inputs/combine_and_extract_imgt_freqs/F10002N_freq.tsv \
+                sandbox/test_inputs/combine_and_extract_imgt_freqs/F10003E_freq.tsv \
+  --output_prefix sandbox/test_inputs/combine_and_extract_imgt_freqs/combined
 
 ######Modeling
 
@@ -263,6 +290,10 @@ Best when:
 Publishing
 
 Working with large cohorts
+
+I am doing it now for a matrix of E. I need to split by cells, then matrix by genotype.
+extract CDR3s which are shared for each genotype, look on their sharing in another genotype.
+
 
 3️⃣ Frequency Thresholding Before Presence Call
 

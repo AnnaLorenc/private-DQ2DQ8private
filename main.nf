@@ -15,6 +15,9 @@ params.max_len = 25	// CDR3 length filters for IMGT freqs
 params.annotation_file = './data/collated_info.csv'
 params.min_non_index = 5
 params.min_value = 1
+params.prop_VHS = 'assets/VHSE.tsv'
+params.prop_kidera = 'assets/kidera_factors.tsv'
+
 
 include {INITIAL_CLEANUP_SPLIT } from './modules/read_sheet.nf'
 include { EXTRACT_DIVERSITY_METRICS as EXTRACT_DIVERSITY_METRICS_PROD } from './modules/extract_diversity_metrics.nf'
@@ -34,10 +37,28 @@ include {COMPUTE_OVERLAPS_SUBSAMPLED} from './modules/compute_overlaps_subsample
 include {COMPUTE_IMGT_AA_FREQS_SUBS} from './modules/imgt_aa_freqs_subsampled.nf'
 include { COMBINE_IMGT_AA_FREQS_MED } from './modules/combine_IMGT_AA_freqs.nf'
 include { COMBINE_IMGT_AA_FREQS_MED as COMBINE_IMGT_AA_FREQS_MED_WL } from './modules/combine_IMGT_AA_freqs.nf'
+include { COMBINE_IMGT_AA_FREQS_MED as COMBINE_IMGT_AA_FREQS_VFAM_MED_WL } from './modules/combine_IMGT_AA_freqs.nf'
+include { COMBINE_IMGT_AA_FREQS_MED as COMBINE_IMGT_AA_FREQS_VFAM_MED } from './modules/combine_IMGT_AA_freqs.nf'
 include {PREP_COMB_IMGT_TEST } from './modules/prep_comb_IMGT_test.nf'
 include {PREP_COMB_IMGT_TEST as PREP_COMB_IMGT_TEST_WL } from './modules/prep_comb_IMGT_test.nf'
+include {PREP_COMB_IMGT_TEST as PREP_COMB_IMGT_TEST_VFAM } from './modules/prep_comb_IMGT_test.nf'
+include {PREP_COMB_IMGT_TEST as PREP_COMB_IMGT_TEST_WL_VFAM	 } from './modules/prep_comb_IMGT_test.nf'
 include {RUN_IMGT_TEST } from './modules/run_imgt_test.nf'
 include {RUN_IMGT_TEST as RUN_IMGT_TEST_WL } from './modules/run_imgt_test.nf'
+include {RUN_IMGT_TEST as RUN_IMGT_TEST_VFAM } from './modules/run_imgt_test.nf'
+include {RUN_IMGT_TEST as RUN_IMGT_TEST_WL_VFAM } from './modules/run_imgt_test.nf'
+
+include {AA_PROPERTIES_TEST} from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_WL } from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_VFAM } from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_WL_VFAM } from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_kidera } from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_WL_kidera } from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_VFAM_kidera } from './modules/aa_properties.nf'
+include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_WL_VFAM_kidera } from './modules/aa_properties.nf'
+
+include {RAREFIED_SHARING} from './modules/rarefied_sharing.nf'
+
 
 // Print a header for your pipeline 
 log.info """\
@@ -209,16 +230,18 @@ workflow {
 
 	COMPUTE_IMGT_AA_FREQS_SUBS(compute_imgt_freqs_subsampled_input_ch)
 
+	//with length, no Vfam
 	// Collect all aa_imgt_freq_full_med files
 	COMPUTE_IMGT_AA_FREQS_SUBS.out.aa_imgt_freq_full_med
 		.map { sample_name, file -> file }  // Extract just the files
 		.collect()  // Collect all files into a single list
 		.set { freq_med_files_ch }
 
-	// Combine the frequency median files
 	def index_cols = params.imgt_index_columns ?: ["IMGT_position", "AA", "aminoAcid_length"]
 	COMBINE_IMGT_AA_FREQS_MED(freq_med_files_ch, index_cols,"_full")
-
+	
+	//without length, no Vfam
+	// Collect all aa_imgt_freq_full_med files
 	COMPUTE_IMGT_AA_FREQS_SUBS.out.aa_imgt_freq_WL_med
 	.map { sample_name, file -> file }  // Extract just the files
 	.collect()  // Collect all files into a single list
@@ -227,21 +250,144 @@ workflow {
 	def index_cols_WL = params.imgt_index_columns_WL ?: ["IMGT_position", "AA"]
 	COMBINE_IMGT_AA_FREQS_MED_WL(freq_med_WL_files_ch, index_cols_WL, "_WL")
 
+
+	//with length, Vfam
+	// Collect all aa_imgt_freq_full_med files
+	COMPUTE_IMGT_AA_FREQS_SUBS.out.aa_imgt_freq_full_Vfam_med	
+		.map { sample_name, file -> file }  // Extract just the files
+		.collect()  // Collect all files into a single list
+		.set { freq_med_vfam_files_ch }
+
+	def index_cols_vfam = params.imgt_index_columns ?: ["IMGT_position", "AA", "aminoAcid_length","vFamilyName"]
+	COMBINE_IMGT_AA_FREQS_VFAM_MED(freq_med_vfam_files_ch, index_cols_vfam,"_full_vfam")
+	
+	//without length, Vfam
+	// Collect all aa_imgt_freq_full_med files
+	COMPUTE_IMGT_AA_FREQS_SUBS.out.aa_imgt_freq_WL_Vfam_med
+	.map { sample_name, file -> file }  // Extract just the files
+	.collect()  // Collect all files into a single list
+	.set { freq_med_WL_vfam_files_ch }
+
+	def index_cols_WL_vfam = params.imgt_index_columns_WL ?: ["IMGT_position", "AA","vFamilyName"]
+	COMBINE_IMGT_AA_FREQS_VFAM_MED_WL(freq_med_WL_vfam_files_ch, index_cols_WL_vfam, "_WL_vfam")
+
+
+
+
     def combined = COMBINE_IMGT_AA_FREQS_MED.out.combined_subs_rows_freq
         .combine(COMBINE_IMGT_AA_FREQS_MED.out.combined_subs_counts)
 
+	//prep for testing - with length, no Vfam &testing
 	PREP_COMB_IMGT_TEST(combined, index_cols, params.annotation_file,  params.min_non_index, params.min_value)
 	
 	def index_cols1 = params.imgt_index_columns ?: ["IMGT_position", "AA", "length"]
 	RUN_IMGT_TEST(PREP_COMB_IMGT_TEST.out.imgt_test_input, index_cols1)
 
+
+
 	def combined_WL = COMBINE_IMGT_AA_FREQS_MED_WL.out.combined_subs_rows_freq
         .combine(COMBINE_IMGT_AA_FREQS_MED_WL.out.combined_subs_counts)
 
+	//prep for testing - with length, no Vfam &testing
 	PREP_COMB_IMGT_TEST_WL(combined_WL, index_cols_WL, params.annotation_file,  params.min_non_index, params.min_value)
 	
 	RUN_IMGT_TEST_WL(PREP_COMB_IMGT_TEST_WL.out.imgt_test_input, index_cols_WL)
 
+
+    def combined_vfam = COMBINE_IMGT_AA_FREQS_VFAM_MED.out.combined_subs_rows_freq
+        .combine(COMBINE_IMGT_AA_FREQS_VFAM_MED.out.combined_subs_counts)
+
+	//prep for testing - with length,Vfam &testing
+	PREP_COMB_IMGT_TEST_VFAM(combined_vfam, index_cols_vfam, params.annotation_file,  params.min_non_index, params.min_value)
+	
+	def index_cols1_vfam = params.imgt_index_columns ?: ["IMGT_position", "AA", "length", "vFamilyName"]
+	RUN_IMGT_TEST_VFAM(PREP_COMB_IMGT_TEST_VFAM.out.imgt_test_input, index_cols1_vfam)
+
+
+
+	def combined_WL_vfam	 = COMBINE_IMGT_AA_FREQS_VFAM_MED_WL.out.combined_subs_rows_freq
+        .combine(COMBINE_IMGT_AA_FREQS_VFAM_MED_WL.out.combined_subs_counts)
+
+	//prep for testing - with length, no Vfam &testing
+	PREP_COMB_IMGT_TEST_WL_VFAM(combined_WL_vfam, index_cols_WL_vfam, params.annotation_file,  params.min_non_index, params.min_value)
+	
+	RUN_IMGT_TEST_WL_VFAM(PREP_COMB_IMGT_TEST_WL_VFAM.out.imgt_test_input, index_cols_WL_vfam)
+
+
+
+
+	//testing for properties
+	
+
+	AA_PROPERTIES_TEST(COMBINE_IMGT_AA_FREQS_MED.out.combined_subs_rows,
+	 index_cols,
+	  params.prop_VHS,
+	  params.annotation_file,
+	 "VHS",
+	 ["IMGT_position", "cells","length"])
+
+	AA_PROPERTIES_TEST_WL(COMBINE_IMGT_AA_FREQS_MED_WL.out.combined_subs_rows,
+	 index_cols_WL,
+	  params.prop_VHS,
+	  params.annotation_file,
+	 "VHS",
+	 ["IMGT_position", "cells"])
+
+	AA_PROPERTIES_TEST_VFAM(COMBINE_IMGT_AA_FREQS_VFAM_MED.out.combined_subs_rows,
+	 index_cols_vfam,
+	  params.prop_VHS,
+	  params.annotation_file,
+	 "VHS",
+	 ["IMGT_position", "cells","length","vFamilyName"])
+
+	AA_PROPERTIES_TEST_WL_VFAM(COMBINE_IMGT_AA_FREQS_VFAM_MED_WL.out.combined_subs_rows,
+	 index_cols_WL_vfam,
+	  params.prop_VHS,
+	  params.annotation_file,
+	 "VHS",
+	 ["IMGT_position", "cells","vFamilyName"])
+
+	AA_PROPERTIES_TEST_kidera(COMBINE_IMGT_AA_FREQS_MED.out.combined_subs_rows,
+	 index_cols,
+	  params.prop_kidera,
+	  params.annotation_file,
+	 "KF",
+	 ["IMGT_position", "cells","length"])
+
+	AA_PROPERTIES_TEST_WL_kidera(COMBINE_IMGT_AA_FREQS_MED_WL.out.combined_subs_rows,
+	 index_cols_WL,
+	  params.prop_kidera,
+	  params.annotation_file,
+	 "KF",
+	 ["IMGT_position", "cells"])
+
+	AA_PROPERTIES_TEST_VFAM_kidera(COMBINE_IMGT_AA_FREQS_VFAM_MED.out.combined_subs_rows,
+	 index_cols_vfam,
+	  params.prop_kidera,
+	  params.annotation_file,
+	 "KF",
+	 ["IMGT_position", "cells","length","vFamilyName"])
+
+	AA_PROPERTIES_TEST_WL_VFAM_kidera(COMBINE_IMGT_AA_FREQS_VFAM_MED_WL.out.combined_subs_rows,
+	 index_cols_WL_vfam,
+	  params.prop_kidera,
+	  params.annotation_file,
+	 "KF",
+	 ["IMGT_position", "cells","vFamilyName"])
+
+
+
+    def K = params.K ?: 200
+    def M = params.N ?: 10000
+    def cols_clonotype = ["aminoAcid", "vFamilyName","jGeneName"]
+
+	MERGE_AMINO_VFAM.out.merged
+    .filter { file -> file.name =~ /.*productive.*/ }
+    .set { merged_file }
+
+	RAREFIED_SHARING (cols_clonotype, merged_file, params.annotation_file, K, M)
+
+	
 	}
 
 

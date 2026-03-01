@@ -77,16 +77,26 @@ def imgt_number_trb(seq: str):
 
     elif core_len > canonical:
         extra = core_len - canonical
-        insertions = [f"111{chr(65+i)}" for i in range(extra)]
-        core_positions = left + insertions + right
+        right_extra = extra // 2
+        left_extra = extra - right_extra
+        left_insertions = [f"111{chr(65+i)}" for i in range(left_extra)]
+        right_insertions = [f"112{chr(65+right_extra-1-i)}" for i in range(right_extra)]
+        core_positions = left + left_insertions + right_insertions + right
 
     else:
         deficit = canonical - core_len
-        remove_left = deficit // 2
-        remove_right = deficit - remove_left
-        trimmed_left = left[remove_left:]
-        trimmed_right = right[:len(right)-remove_right]
+        print(f"deficit: {deficit}")
+        remove_right = deficit // 2
+        
+        remove_left = deficit - remove_right
+        # print(f"remove_left: {remove_left}")
+        # print(f"remove_right: {remove_right}")
+        trimmed_left = left[:len(left)-remove_left]  # Remove last remove_left elements
+        # print(f"trimmed_left: {trimmed_left}")
+        trimmed_right = right[remove_right:]
+        # print(f"trimmed_right: {trimmed_right}")
         core_positions = trimmed_left + trimmed_right
+        # print(f"core_positions: {core_positions}")    
 
     for pos, aa in zip(core_positions, core):
         positions.append((pos, aa))
@@ -110,7 +120,9 @@ def process(input_file, output_base, min_len, max_len):
 
     # summary_out = os.path.join(output_dir, f"{file_stem}_summ.tsv")
     freq_out = os.path.join(output_dir, f"{file_stem}_freq.tsv")
+    freq_out_Vfam = os.path.join(output_dir, f"{file_stem}_freq_Vfam.tsv")
     freq_out_withoutLength = os.path.join(output_dir, f"{file_stem}_freq_WL.tsv")
+    freq_out_withoutLength_Vfam = os.path.join(output_dir, f"{file_stem}_freq_WL_Vfam.tsv")
     valid_out = os.path.join(output_dir, f"{file_stem}_valid.tsv")
     invalid_out = os.path.join(output_dir, f"{file_stem}_invalid.tsv")
 
@@ -169,6 +181,7 @@ def process(input_file, output_base, min_len, max_len):
                 "AA": aa,
                 "IMGT_position": pos,
                 "aminoAcid_length": seq_len,
+                "vFamilyName": row["vFamilyName"],
             }
 
             for s in sample_cols:
@@ -183,23 +196,23 @@ def process(input_file, output_base, min_len, max_len):
     # --------------------------------------------------
     # SUMMARY TABLE
     # --------------------------------------------------
-    summary = (
-        exploded_df
-        .group_by(["AA", "IMGT_position", "aminoAcid_length"])
-        .agg(
-            [
-                pl.col(s).sum().alias(f"{s}_counts")
-                for s in sample_cols
-            ] +
-            [
-                (pl.col(s) > 0)
-                .cast(pl.Int32)
-                .sum()
-                .alias(f"{s}_rows")
-                for s in sample_cols
-            ]
-        )
-    )
+    # summary = (
+    #     exploded_df
+    #     .group_by(["AA", "IMGT_position", "aminoAcid_length"])
+    #     .agg(
+    #         [
+    #             pl.col(s).sum().alias(f"{s}_counts")
+    #             for s in sample_cols
+    #         ] +
+    #         [
+    #             (pl.col(s) > 0)
+    #             .cast(pl.Int32)
+    #             .sum()
+    #             .alias(f"{s}_rows")
+    #             for s in sample_cols
+    #         ]
+    #     )
+    # )
 
     # summary.write_csv(summary_out, separator="\t")
 
@@ -244,22 +257,76 @@ def process(input_file, output_base, min_len, max_len):
     # compute normalized frequencies
     for s in sample_cols:
         freq = freq.with_columns(
-            (
-                pl.col(f"{s}_counts") /
-                pl.col(f"{s}_counts_total")
-            ).alias(f"{s}_counts_freq")
+            pl.when(pl.col(f"{s}_counts_total") == 0)
+            .then(0)
+            .otherwise(pl.col(f"{s}_counts") / pl.col(f"{s}_counts_total"))
+            .alias(f"{s}_counts_freq")
         ).with_columns(
-            (
-                pl.col(f"{s}_rows") /
-                pl.col(f"{s}_rows_total")
-            ).alias(f"{s}_rows_freq")
+            pl.when(pl.col(f"{s}_rows_total") == 0)
+            .then(0)
+            .otherwise(pl.col(f"{s}_rows") / pl.col(f"{s}_rows_total"))
+            .alias(f"{s}_rows_freq")
         )
-
     # remove total columns
     drop_cols = [c for c in freq.columns if c.endswith("_total")]
     freq = freq.drop(drop_cols)
 
     freq.write_csv(freq_out, separator="\t")
+
+    # --------------------------------------------------
+    # FREQUENCY TABLE (with length, including vFamilyName)
+    # --------------------------------------------------
+    freq_counts_Vfam = (
+        exploded_df
+        .group_by(["AA", "IMGT_position", "aminoAcid_length", "vFamilyName"])
+        .agg(
+            [
+                pl.col(s).sum().alias(f"{s}_counts")
+                for s in sample_cols
+            ] +
+            [
+                (pl.col(s) > 0)
+                .cast(pl.Int32)
+                .sum()
+                .alias(f"{s}_rows")
+                for s in sample_cols
+            ]
+        )
+    )
+
+    totals_Vfam = (
+        freq_counts_Vfam
+        .group_by(["IMGT_position", "aminoAcid_length", "vFamilyName"])
+        .agg(
+            [
+                pl.col(f"{s}_counts").sum().alias(f"{s}_counts_total")
+                for s in sample_cols
+            ] +
+            [
+                pl.col(f"{s}_rows").sum().alias(f"{s}_rows_total")
+                for s in sample_cols
+            ]
+        )
+    )
+
+    freq_Vfam = freq_counts_Vfam.join(totals_Vfam, on=["IMGT_position", "aminoAcid_length", "vFamilyName"])
+
+    for s in sample_cols:
+        freq_Vfam = freq_Vfam.with_columns(
+            pl.when(pl.col(f"{s}_counts_total") == 0)
+            .then(0)
+            .otherwise(pl.col(f"{s}_counts") / pl.col(f"{s}_counts_total"))
+            .alias(f"{s}_counts_freq")
+        ).with_columns(
+            pl.when(pl.col(f"{s}_rows_total") == 0)
+            .then(0)
+            .otherwise(pl.col(f"{s}_rows") / pl.col(f"{s}_rows_total"))
+            .alias(f"{s}_rows_freq")
+        )
+    drop_cols = [c for c in freq_Vfam.columns if c.endswith("_total")]
+    freq_Vfam = freq_Vfam.drop(drop_cols)
+
+    freq_Vfam.write_csv(freq_out_Vfam, separator="\t")
 
     # --------------------------------------------------
     # FREQUENCY TABLE (without length)
@@ -316,6 +383,63 @@ def process(input_file, output_base, min_len, max_len):
     freq_withoutLength = freq_withoutLength.drop(drop_cols)
 
     freq_withoutLength.write_csv(freq_out_withoutLength, separator="\t")
+
+    # --------------------------------------------------
+    # FREQUENCY TABLE (without length, including vFamilyName)
+    # --------------------------------------------------
+    freq_counts_wl_Vfam = (
+        exploded_df
+        .group_by(["AA", "IMGT_position", "vFamilyName"])
+        .agg(
+            [
+                pl.col(s).sum().alias(f"{s}_counts")
+                for s in sample_cols
+            ] +
+            [
+                (pl.col(s) > 0)
+                .cast(pl.Int32)
+                .sum()
+                .alias(f"{s}_rows")
+                for s in sample_cols
+            ]
+        )
+    )
+
+    totals_wl_Vfam = (
+        freq_counts_wl_Vfam
+        .group_by(["IMGT_position", "vFamilyName"])
+        .agg(
+            [
+                pl.col(f"{s}_counts").sum().alias(f"{s}_counts_total")
+                for s in sample_cols
+            ] +
+            [
+                pl.col(f"{s}_rows").sum().alias(f"{s}_rows_total")
+                for s in sample_cols
+            ]
+        )
+    )
+
+    freq_withoutLength_Vfam = freq_counts_wl_Vfam.join(totals_wl_Vfam, on=["IMGT_position", "vFamilyName"])
+
+    for s in sample_cols:
+        freq_withoutLength_Vfam = freq_withoutLength_Vfam.with_columns(
+            pl.when(pl.col(f"{s}_counts_total") == 0)
+            .then(0)
+            .otherwise(pl.col(f"{s}_counts") / pl.col(f"{s}_counts_total"))
+            .alias(f"{s}_counts_freq")
+        ).with_columns(
+            pl.when(pl.col(f"{s}_rows_total") == 0)
+            .then(0)
+            .otherwise(pl.col(f"{s}_rows") / pl.col(f"{s}_rows_total"))
+            .alias(f"{s}_rows_freq")
+        )
+
+    drop_cols = [c for c in freq_withoutLength_Vfam.columns if c.endswith("_total")]
+    freq_withoutLength_Vfam = freq_withoutLength_Vfam.drop(drop_cols)
+
+    freq_withoutLength_Vfam.write_csv(freq_out_withoutLength_Vfam, separator="\t")
+
 # --------------------------------------------------
 # CLI
 # --------------------------------------------------

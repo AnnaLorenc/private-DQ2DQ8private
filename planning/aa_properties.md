@@ -36,3 +36,8 @@ Kidera factors:
 10 KF10  -0.48  0.93 -1.73  0.7   1.1  -2.33 -0.12  0.46  1.63 -1.78  0.93  0.6   0.27 -0.44 -0.28 -0.23  0.19 -0.6   0.53  0.65
 
 Describe your decisions and planning in the file aa_properties_reasoning.md in the sandbox.
+
+###I realised starting from counts might be better
+
+write a script, which starts from a file like results/imgt_aa_combined/comb_aa_imgt_subs_rows.tsv. this is a table with index columns IMGT_position	AA	aminoAcid_length  (might be differen, do not hardcode) and how often given combination  was encountered in samples (remaining columns). For each combination of index columns collect all aminoacids. For each of the properties (for example from Kidera factors) compute the average value of this property in a given sample. For example lets say IMGT_pos 110, aminoAcid_length 13. In the sample XX you see AA =C 23,AA=D 10, AA=F 5 times (together 3 lines, 38). Kidera factor 1 KF1 for these aminoacids is correspondingly -2,0,1.5 . Compute weighted KF1 value as  -2*23/38+0+5/38*1.5. Repeat it for all properties. 
+Add another script to  reorganise the output toobtain the shape as in kidera_aggregated.tsv. Read the content of bin/prepare_for_imgt_test.py to know how to add genotype and cells, but do not implement filtering suggested there. Output should look like kidera_aggregated.tsv in format

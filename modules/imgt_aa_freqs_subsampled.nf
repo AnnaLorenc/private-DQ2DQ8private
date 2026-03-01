@@ -11,7 +11,11 @@ process COMPUTE_IMGT_AA_FREQS_SUBS {
     tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_valid.tsv"), emit: exploded_df
     tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_WL.tsv"), emit: aa_imgt_freq_WL
     tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_med.tsv"), emit: aa_imgt_freq_full_med
-    tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_WL_med.tsv"), emit: aa_imgt_freq_WL_med  
+    tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_WL_med.tsv"), emit: aa_imgt_freq_WL_med 
+    tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_Vfam_med.tsv"), emit: aa_imgt_freq_full_Vfam_med
+    tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_WL_Vfam_med.tsv"), emit: aa_imgt_freq_WL_Vfam_med  
+    tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_Vfam.tsv"), emit: aa_imgt_freq_full_Vfam
+    tuple val(sample_name), path("${sample_name}_aa_freqs/${sample_name}_freq_WL_Vfam.tsv"), emit: aa_imgt_freq_WL_Vfam  
 
     script:
     """
@@ -44,6 +48,19 @@ process COMPUTE_IMGT_AA_FREQS_SUBS {
         --input ${sample_name}_aa_freqs/${sample_name}_freq.tsv \
         --output ${sample_name}_aa_freqs/${sample_name}_freq_med.tsv  \
         --sample_name ${sample_name} \
+
+    python ${projectDir}/bin/compute_medians.py \
+    --input ${sample_name}_aa_freqs/${sample_name}_freq_WL_Vfam.tsv \
+    --sample_name ${sample_name} \
+    --output ${sample_name}_aa_freqs/${sample_name}_freq_WL_Vfam_med.tsv \
+    --index_columns IMGT_position AA vFamilyName   
+    
+    python ${projectDir}/bin/compute_medians.py \
+        --input ${sample_name}_aa_freqs/${sample_name}_freq_Vfam.tsv \
+        --output ${sample_name}_aa_freqs/${sample_name}_freq_Vfam_med.tsv  \
+        --sample_name ${sample_name} \
+        --index_columns IMGT_position aminoAcid_length AA vFamilyName  
+
     """
 }
 

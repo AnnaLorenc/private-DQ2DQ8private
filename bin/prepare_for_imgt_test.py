@@ -205,6 +205,9 @@ def prepare_for_imgt_test(
     if "aminoAcid_length" in df_joined.columns:
         out_cols.append(pl.col("aminoAcid_length").alias("length"))
 
+    if "vFamilyName" in df_joined.columns:
+        out_cols.append(pl.col("vFamilyName").alias("vFamilyName"))    
+
     out_cols.extend(
         [
             pl.col("AA"),
