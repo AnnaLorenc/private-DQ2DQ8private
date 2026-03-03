@@ -62,6 +62,47 @@ def clonality(
         return _clonality_pandas(data, rarefy, min_count, iterations, group_by)
 
 
+def inverse_simpson(counts: np.ndarray) -> float:
+    """
+    Calculate the Inverse Simpson diversity index.
+
+    Defined as 1 / sum(p_i^2), where p_i are relative frequencies.
+    Ranges from 1 (single dominant clone) to N (all clones equally abundant).
+
+    Args:
+        counts: Array of sequence counts
+
+    Returns:
+        Inverse Simpson index
+    """
+    counts = np.asarray(counts, dtype=float)
+    total = counts.sum()
+    if total == 0:
+        return 0.0
+    frequencies = counts / total
+    simpson = np.sum(frequencies ** 2)
+    return 1.0 / simpson if simpson > 0 else 0.0
+
+
+def inverse_simpson_polars(counts: pl.Series) -> float:
+    """
+    Calculate the Inverse Simpson diversity index from a Polars Series.
+
+    Args:
+        counts: Polars Series of sequence counts
+
+    Returns:
+        Inverse Simpson index
+    """
+    arr = counts.to_numpy().astype(float)
+    total = arr.sum()
+    if total == 0:
+        return 0.0
+    frequencies = arr / total
+    simpson = np.sum(frequencies ** 2)
+    return 1.0 / simpson if simpson > 0 else 0.0
+
+
 def _clonality_polars(
     data: pl.DataFrame,
     rarefy: bool,
@@ -111,7 +152,8 @@ def _clonality_polars(
                 "clonality": 1 - normalized_entropy,
                 "gini_coefficient": gini_coefficient(counts),
                 "top_sequence": counts.max() / counts.sum(),
-                "convergence": len(rep_data) / n_unique
+                "convergence": len(rep_data) / n_unique,
+                "inverse_simpson": inverse_simpson_polars(rep_data["duplicate_count"]),
             })
 
         results = pl.DataFrame(results)
@@ -177,7 +219,8 @@ def _clonality_pandas(
                 "clonality": 1 - normalized_entropy,
                 "gini_coefficient": gini_coefficient(counts),
                 "top_sequence": counts.max() / counts.sum(),
-                "convergence": len(group) / n_unique
+                "convergence": len(group) / n_unique,
+                "inverse_simpson": inverse_simpson(counts),
             })
 
         results = productive_data.groupby(group_by).apply(calculate_metrics).reset_index()
@@ -264,7 +307,8 @@ def _perform_rarefaction_polars(
                 "clonality": 1 - normalized_entropy,
                 "gini_coefficient": gini_coefficient(seq_counts),
                 "top_sequence": seq_counts.max() / seq_counts.sum(),
-                "convergence": len(sampled_seqs) / n_unique
+                "convergence": len(sampled_seqs) / n_unique,
+                "inverse_simpson": inverse_simpson_polars(pl.Series(seq_counts)),
             }
             iteration_metrics.append(metrics)
 
@@ -277,7 +321,8 @@ def _perform_rarefaction_polars(
             "clonality": np.mean([m["clonality"] for m in iteration_metrics]),
             "gini_coefficient": np.mean([m["gini_coefficient"] for m in iteration_metrics]),
             "top_sequence": np.mean([m["top_sequence"] for m in iteration_metrics]),
-            "convergence": np.mean([m["convergence"] for m in iteration_metrics])
+            "convergence": np.mean([m["convergence"] for m in iteration_metrics]),
+            "inverse_simpson": np.mean([m["inverse_simpson"] for m in iteration_metrics]),
         }
         results.append(avg_metrics)
 
@@ -347,7 +392,8 @@ def _perform_rarefaction_pandas(
                     "clonality": 1 - normalized_entropy,
                     "gini_coefficient": gini_coefficient(seq_counts),
                     "top_sequence": seq_counts.max() / seq_counts.sum(),
-                    "convergence": len(sampled_seqs) / n_unique
+                    "convergence": len(sampled_seqs) / n_unique,
+                    "inverse_simpson": inverse_simpson(seq_counts),
                 }
                 iteration_results.append(metrics)
 

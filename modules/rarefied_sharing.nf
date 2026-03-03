@@ -1,6 +1,6 @@
 process RAREFIED_SHARING {
 
-    publishDir "${params.outdir}/rarified_sharing/", mode: 'copy'
+    publishDir "${params.outdir}/rarified_sharing/${index_cols.join('_')}/", mode: 'copy'
 
     input:
     val index_cols
@@ -39,6 +39,7 @@ process RAREFIED_SHARING {
         --K ${K} --M ${M} \
         --groups_file groups_E.yml \
         --output rare_groupE_K${K}_M${M} \
+        --index_cols "${index_cols.join(',')}" \
         --seed 42         
 
     echo "publicity N..."
@@ -47,6 +48,7 @@ process RAREFIED_SHARING {
         --K ${K} --M ${M} \
         --groups_file groups_N.yml \
         --output rare_groupN_K${K}_M${M} \
+        --index_cols "${index_cols.join(',')}" \
         --seed 42           
 
     echo "summarising sharing..."
@@ -54,6 +56,7 @@ process RAREFIED_SHARING {
         --input rare_groupE_K${K}_M${M}/DQ2_sharing.tsv \
                 rare_groupE_K${K}_M${M}/DQ8_sharing.tsv \
                 rare_groupE_K${K}_M${M}/hete_sharing.tsv \
+        --index_cols "${index_cols.join(',')}" \
         --A 3 \
         --output sharing_summary_E_A3
 
@@ -61,6 +64,7 @@ process RAREFIED_SHARING {
         --input rare_groupN_K${K}_M${M}/DQ2_sharing.tsv \
                 rare_groupN_K${K}_M${M}/DQ8_sharing.tsv \
                 rare_groupN_K${K}_M${M}/hete_sharing.tsv \
+        --index_cols "${index_cols.join(',')}" \
         --A 3 \
         --output sharing_summary_N_A3
 

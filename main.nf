@@ -58,7 +58,11 @@ include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_VFAM_kidera } from './modules/
 include {AA_PROPERTIES_TEST as AA_PROPERTIES_TEST_WL_VFAM_kidera } from './modules/aa_properties.nf'
 
 include {RAREFIED_SHARING} from './modules/rarefied_sharing.nf'
+include {RAREFIED_SHARING as RAREFIED_SHARING_VFAM } from './modules/rarefied_sharing.nf'
+include {RAREFIED_SHARING as RAREFIED_SHARING_AA } from './modules/rarefied_sharing.nf'
 
+include {RAREFIED_DIVERSITY_METRICS}	from './modules/rarefied_diversity_metrics.nf'
+include {COMBINE_RAREFIED_DIVERSITY_METRICS} from './modules/combine_rarefied_diversity_metrics.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -380,14 +384,33 @@ workflow {
     def K = params.K ?: 200
     def M = params.N ?: 10000
     def cols_clonotype = ["aminoAcid", "vFamilyName","jGeneName"]
+	
 
 	MERGE_AMINO_VFAM.out.merged
     .filter { file -> file.name =~ /.*productive.*/ }
     .set { merged_file }
 
 	RAREFIED_SHARING (cols_clonotype, merged_file, params.annotation_file, K, M)
+	RAREFIED_SHARING_VFAM (["aminoAcid", "vFamilyName"], merged_file, params.annotation_file, K, M)
+	RAREFIED_SHARING_AA (["aminoAcid"], merged_file, params.annotation_file, K, M)
 
-	
+	def rarefy=true
+	def sequence_cols= params.index_columns
+	def count_col = 'count (templates/reads)'
+	def min_count = params.N
+	def iterations = params.M
+
+	RAREFIED_DIVERSITY_METRICS(INITIAL_CLEANUP_SPLIT.out.productive,
+        iterations,
+        sequence_cols,
+        count_col,
+        rarefy,
+        min_count)
+
+	    // Collect just the summary files (drop sample_id)
+    all_summaries = RAREFIED_DIVERSITY_METRICS.out.diversity_metrics.map { sample_id, file -> file }.collect()    
+    COMBINE_RAREFIED_DIVERSITY_METRICS(all_summaries)
+
 	}
 
 

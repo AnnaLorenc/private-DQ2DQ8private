@@ -19,6 +19,8 @@ import sys
 sys.path.append('/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/assets')
 import changed_diversity
 
+# changed_diversity is my version of changed_diversity from lymphoseq, which is a bit more flexible and can handle polars DataFrames. It also includes the shannon_diversity function, which I implemented separately to ensure it works with polars DataFrames. The compute_diversity_metrics function combines the results from changed_diversity.diversity_metrics with the Shannon diversity calculation, returning a single DataFrame with all the metrics.
+
 
 def immunoseq_to_airr(df: pl.DataFrame) -> pl.DataFrame:
 

@@ -1,4 +1,0 @@
-sample,fq1,fq2,platform,library,center
-earlycasualcaiman,/pretend/path/1_171015_HHT5NDSXX_earlycasualcaiman_XXXXXX_1_1k.fastq.gz,/pretend/path/1_171015_HHT5NDSXX_earlycasualcaiman_XXXXXX_2_1k.fastq.gz,illumina,1,nfcore
-hugelymodelbat,/pretend/path/1_171015_HHT5NDSXX_hugelymodelbat_XXXXXX_1_1k.fastq.gz,/pretend/path/1_171015_HHT5NDSXX_hugelymodelbat_XXXXXX_2_1k.fastq.gz,pacbio,1,nfcore
-vapidkangaroo,/pretend/path/1_171015_HHT5NDSXX_vapidkangaroo_XXXXXX_1_1k.fastq.gz,/pretend/path/1_171015_HHT5NDSXX_vapidkangaroo_XXXXXX_2_1k.fastq.gz,pacbio,1,nfcore
