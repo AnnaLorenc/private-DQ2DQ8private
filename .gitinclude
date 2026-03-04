@@ -2,6 +2,7 @@ assets/
 bin/
 config/
 data/
+for_plots_R/
 lib/
 modules/
 planning/
