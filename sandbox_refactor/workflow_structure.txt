@@ -1,0 +1,114 @@
+REFACTORED WORKFLOW STRUCTURE
+==============================
+
+main_refactored.nf
+│
+├─► INITIAL_CLEANUP_SPLIT (module)
+│   ├── productive output
+│   └── nonproductive output
+│
+├─► DIVERSITY_METRICS_WORKFLOW (subworkflow)
+│   ├── Input: productive_ch, nonproductive_ch
+│   ├── Processes:
+│   │   ├── EXTRACT_DIVERSITY_METRICS_PROD
+│   │   ├── EXTRACT_DIVERSITY_METRICS_NONPROD
+│   │   ├── COMBINE_DIVERSITY_METRICS_PROD
+│   │   └── COMBINE_DIVERSITY_METRICS_NONPROD
+│   └── Output: productive_combined, nonproductive_combined
+│
+├─► FREQUENCY_ANALYSIS_WORKFLOW (subworkflow)
+│   ├── Input: productive_ch, nonproductive_ch
+│   ├── Processes:
+│   │   ├── COMPUTE_FREQS_PROD
+│   │   ├── COMPUTE_FREQS_NONPROD
+│   │   ├── COMBINE_FREQS_PROD
+│   │   └── COMBINE_FREQS_NONPROD
+│   └── Output: productive_combined, nonproductive_combined
+│
+├─► MERGING_SUBSAMPLING_WORKFLOW (subworkflow)
+│   ├── Input: productive_files_ch, index_columns, count_column, N, M
+│   ├── Processes:
+│   │   ├── MERGE_AMINO_VFAM
+│   │   ├── SUBSAMPLE_FROM_MERGED
+│   │   ├── COMPUTE_FREQS_SUBSAMPLED
+│   │   ├── COMBINE_FREQS_SUBSAMPLED
+│   │   ├── COMPUTE_OVERLAPS
+│   │   └── COMPUTE_OVERLAPS_SUBSAMPLED
+│   └── Output: merged_file, subsampled_files, combined_freqs, overlaps, overlaps_subsampled
+│
+├─► IMGT_AA_FREQUENCY_WORKFLOW (subworkflow)
+│   ├── Input: subsampled_files_ch, min_len, max_len, annotation_file, min_non_index, min_value
+│   ├── Processes:
+│   │   ├── COMPUTE_IMGT_AA_FREQS_SUBS
+│   │   ├── COMBINE_IMGT_AA_FREQS_MED (with length, no Vfam)
+│   │   │   ├── PREP_COMB_IMGT_TEST
+│   │   │   └── RUN_IMGT_TEST
+│   │   ├── COMBINE_IMGT_AA_FREQS_MED_WL (without length, no Vfam)
+│   │   │   ├── PREP_COMB_IMGT_TEST_WL
+│   │   │   └── RUN_IMGT_TEST_WL
+│   │   ├── COMBINE_IMGT_AA_FREQS_VFAM_MED (with length, with Vfam)
+│   │   │   ├── PREP_COMB_IMGT_TEST_VFAM
+│   │   │   └── RUN_IMGT_TEST_VFAM
+│   │   └── COMBINE_IMGT_AA_FREQS_VFAM_MED_WL (without length, with Vfam)
+│   │       ├── PREP_COMB_IMGT_TEST_WL_VFAM
+│   │       └── RUN_IMGT_TEST_WL_VFAM
+│   └── Output: combined_subs_rows_full, combined_subs_rows_WL, 
+│              combined_subs_rows_vfam, combined_subs_rows_WL_vfam,
+│              test_results_full, test_results_WL, test_results_vfam, test_results_WL_vfam
+│
+├─► AA_PROPERTIES_TESTING_WORKFLOW (subworkflow)
+│   ├── Input: combined_subs_rows_full, combined_subs_rows_WL,
+│   │         combined_subs_rows_vfam, combined_subs_rows_WL_vfam,
+│   │         prop_VHS, prop_kidera, annotation_file
+│   ├── Processes:
+│   │   ├── VHS Properties Testing:
+│   │   │   ├── AA_PROPERTIES_TEST (with length, no Vfam)
+│   │   │   ├── AA_PROPERTIES_TEST_WL (without length, no Vfam)
+│   │   │   ├── AA_PROPERTIES_TEST_VFAM (with length, with Vfam)
+│   │   │   └── AA_PROPERTIES_TEST_WL_VFAM (without length, with Vfam)
+│   │   └── Kidera Factors Testing:
+│   │       ├── AA_PROPERTIES_TEST_kidera (with length, no Vfam)
+│   │       ├── AA_PROPERTIES_TEST_WL_kidera (without length, no Vfam)
+│   │       ├── AA_PROPERTIES_TEST_VFAM_kidera (with length, with Vfam)
+│   │       └── AA_PROPERTIES_TEST_WL_VFAM_kidera (without length, with Vfam)
+│   └── Output: 8 test result channels (4 VHS + 4 Kidera)
+│
+└─► RAREFIED_SHARING_WORKFLOW (subworkflow)
+    ├── Input: merged_file_ch, annotation_file, K, M
+    ├── Processes:
+    │   ├── RAREFIED_SHARING (aminoAcid + vFamilyName + jGeneName)
+    │   ├── RAREFIED_SHARING_VFAM (aminoAcid + vFamilyName)
+    │   └── RAREFIED_SHARING_AA (aminoAcid only)
+    └── Output: sharing_full, sharing_vfam, sharing_aa
+
+
+COMPARISON: Before vs After
+============================
+
+BEFORE (Original main.nf):
+- 1 monolithic file (~200+ lines)
+- All logic mixed together
+- Hard to understand flow
+- Difficult to test individual parts
+- Channel operations scattered everywhere
+- Repeated patterns not abstracted
+
+AFTER (Refactored):
+- 1 main file (147 lines) + 6 sub-workflows
+- Clear separation of concerns
+- Easy to understand at a glance
+- Each sub-workflow testable independently
+- Clean, declarative main workflow
+- Reusable components
+
+
+FILE LISTING:
+=============
+main_refactored.nf                      (147 lines) - New main workflow
+subworkflows/diversity_metrics.nf       (48 lines)  - Diversity metrics sub-workflow
+subworkflows/frequency_analysis.nf      (48 lines)  - Frequency analysis sub-workflow
+subworkflows/merging_subsampling.nf     (88 lines)  - Merging & subsampling sub-workflow
+subworkflows/imgt_aa_frequency.nf       (112 lines) - IMGT AA frequency sub-workflow
+subworkflows/aa_properties_testing.nf   (121 lines) - AA properties testing sub-workflow
+subworkflows/rarefied_sharing.nf        (32 lines)  - Rarefied sharing sub-workflow
+REFACTORING_GUIDE.md                    (277 lines) - Complete documentation

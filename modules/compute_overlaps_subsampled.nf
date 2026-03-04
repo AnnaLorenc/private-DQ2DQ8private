@@ -13,7 +13,7 @@ process COMPUTE_OVERLAPS_SUBSAMPLED {
 
 
     """
-    python ${projectDir}/bin/compute_overlaps_subs.py \
+    python ${projectDir}/bin/overlaps/compute_overlaps_subs.py \
         --samples_file ${sample_names_file} \
         --subsample_dir ${subsampled_dirs} \
         --output_file overlaps_subs_${type}.tsv 

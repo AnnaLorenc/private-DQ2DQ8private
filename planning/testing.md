@@ -2,7 +2,7 @@ You are a seasoned data analyst. Write the following scripts, test them by produ
 The only files you are allowed to write to outside of results_man/imgt_test are:
 
 
-1. Write a python script bin/prepare_for_imgt_test.py to restructure the input_file of a shape like ./results/imgt_aa_combined/comb_aa_imgt_full_subs_rows_freq.tsv:
+1. Write a python script bin/imgtCDR3/prepare_for_imgt_test.py to restructure the input_file of a shape like ./results/imgt_aa_combined/comb_aa_imgt_full_subs_rows_freq.tsv:
 IMGT_position is a string.
 Add as an option filtering before this processing, by a filter_file like  results/imgt_aa_combined/comb_aa_imgt_full_subs_rows.tsv.
 Take from filter_file index columns for the rows where at least N non-index columns  (Index columns: by default IMGT_position   AA      aminoAcid_length , should be possible to indicate) have value > min. 
@@ -25,7 +25,7 @@ Implement similarily to other scripts in bin/*.py, so it is runnable with CLI, h
 arguments: input_file, filter_file (optional), index_columns ( default IMGT_position   AA      aminoAcid_length), annotation_file, output
 Print out the number of input_file rows, if filtering - how many rows left after filtering, info that joining with annotation happens
 
-2. Write a python script bin/test_imgt.py. 
+2. Write a python script bin/imgtCDR3/test_imgt.py. 
 Use current version of polars or other fast implementations when possible.
 Implement similarily to other scripts in bin/*.py, so it is runnable with CLI, has a header, gets main() call.
 

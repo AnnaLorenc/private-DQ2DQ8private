@@ -13,7 +13,7 @@ process INITIAL_CLEANUP_SPLIT {
 
     script:
     """
-    python  ${projectDir}/bin/lymphoseq_readin.py \
+    python  ${projectDir}/bin/preprocess/clean_split_immunoseq.py \
         --seqs_to_remove ${projectDir}/${seqs_to_remove} \
         --output_loc . \
         --sample ${sample} \

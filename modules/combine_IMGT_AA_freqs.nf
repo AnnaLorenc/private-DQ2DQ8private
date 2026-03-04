@@ -25,7 +25,7 @@ process COMBINE_IMGT_AA_FREQS_MED {
     ls -la *.tsv
     
     # Combine and extract subset of columns
-    python ${projectDir}/bin/combine_and_extract_imgt_freqs.py \
+    python ${projectDir}/bin/imgtCDR3/combine_and_extract_imgt_freqs.py \
         --input_files ${freq_med_files.join(' ')} \
         --output_prefix comb_aa_imgt${suffix} \
         ${index_cols_arg}

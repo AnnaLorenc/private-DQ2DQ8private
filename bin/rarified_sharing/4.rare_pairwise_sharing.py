@@ -4,7 +4,7 @@ Script: rare_pairwise_sharing.py
 
 Description
 -----------
-Rarefaction-based pairwise clonotype sharing between samples - better than bin/compute_overlaps_subs.py
+Rarefaction-based pairwise clonotype sharing between samples - better than bin/overlaps/compute_overlaps_subs.py
 
 For each subsampling round (K rounds, M clonotypes drawn per sample):
   - within_group entries: assess all pairwise sharing within each named group.

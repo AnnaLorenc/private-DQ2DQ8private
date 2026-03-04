@@ -5,7 +5,16 @@ import gzip
 
 def merge_trb_data(input_files, output_file, merge_columns, count_column):
     """
-    Merge TRB data from multiple files into a single file with specified merge and count columns.
+    Merge TRB data from multiple files into a single file with specified merge and count columns. Created in the context of merging TRB data for the DQ2DQ8 project,
+     from all samples into one big db-like file.
+    It first collapses rows with the same merge_columns values by summing their count_column values.
+The output is a wide matrix with:
+
+Rows: one per unique combination of merge_columns values found across all input files
+Columns: len(merge_columns) + len(input_files)
+the merge columns come first (e.g. aminoAcid, vFamilyName)
+then one column per input sample, named after the first _-delimited part of each filename
+So for example, with --merge_columns aminoAcid vFamilyName and 60 input files, the output is N × 62, where N is the number of distinct clonotype definitions seen across all samples.
 
     Parameters:
         input_files (list): List of file paths to ingest.
@@ -46,12 +55,13 @@ def merge_trb_data(input_files, output_file, merge_columns, count_column):
     # Stack all files vertically
     combined = pl.concat(dfs, how="diagonal")
 
-    # SQL-style GROUP BY
+    # Group by the merge columns and sum the numeric columns - should not be necessary
     aggregated_data = (
         combined
         .group_by(merge_columns)
         .agg(pl.col(pl.NUMERIC_DTYPES).sum())
         .sort(merge_columns)
+        .fill_null(0)
 )
 
 

@@ -27,7 +27,7 @@ process PREP_COMB_IMGT_TEST {
     # Filter to have at least min_non_index samples with at least min_value counts of given position (established based on --filter_file with counts)
     # Then reshape into long format: Index columns, celltype,
     #combine with the annotation file 
-    python ${projectDir}/bin/prepare_for_imgt_test.py \
+    python ${projectDir}/bin/imgtCDR3/prepare_for_imgt_test.py \
         --input_file ${freqs} \
         --annotation_file ${projectDir}/${annotation_file} \
         --output ${out_name} \

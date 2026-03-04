@@ -8,7 +8,7 @@ t-test) comparisons of property profiles across genotype groups, for each
 combination of aggregation columns (e.g. IMGT_position × cells, or
 IMGT_position × length × cells).
 
-The input is the output of imgt_wide_to_properties.py--> properties_add_annotation.py: one row per
+The input is the output of imgtCDR3/imgt_wide_to_properties.py--> imgtCDR3/properties_add_annotation.py: one row per
 (agg_cols × patient × sample × genotype), with property columns specified by --prop_columns.
 
 Two comparisons are performed:

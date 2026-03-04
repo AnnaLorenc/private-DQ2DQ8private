@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-This script processes lymphoseq data by removing specified sequences, splitting the data into productive and non-productive sequences,
+This script processes immunoseq data by removing specified sequences, splitting the data into productive and non-productive sequences,
 and generating a cleanup summary. The script takes the following command-line arguments:
 
 1. --seqs_to_remove: Path to the file containing sequences to remove.
@@ -20,7 +20,7 @@ def main():
     from pathlib import Path
 
     # Define command-line arguments
-    parser = argparse.ArgumentParser(description="Process lymphoseq data.")
+    parser = argparse.ArgumentParser(description="Process immunoseq data.")
     parser.add_argument("--seqs_to_remove", type=str, required=True, help="Path to the file containing sequences to remove.")
     parser.add_argument("--output_loc", type=str, required=True, help="Directory to save the cleaned results.")
  #   parser.add_argument("--samplesheet", type=str, required=True, help="Path to the samplesheet CSV file.")

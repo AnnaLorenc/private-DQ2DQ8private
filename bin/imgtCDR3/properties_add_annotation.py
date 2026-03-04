@@ -4,12 +4,12 @@
 Summary
 -------
 Adds patient, cells, and genotype columns to the output of
-imgt_wide_to_properties.py, producing a file with the same shape as
+imgtCDR3/imgt_wide_to_properties.py, producing a file with the same shape as
 sandbox/properties_aggregated.tsv.
 
 Input
 -----
-1. Long-format TSV from imgt_wide_to_properties.py:
+1. Long-format TSV from imgtCDR3/imgt_wide_to_properties.py:
        <group cols>  sample  <property cols>
    where 'sample' contains values like 'F15625E_subs_rows'.
 # Script: properties_add_annotation.py
@@ -60,12 +60,12 @@ def recode_genotype(series: pd.Series) -> pd.Series:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Add patient, cells and genotype annotation to imgt_wide_to_properties.py "
+            "Add patient, cells and genotype annotation to imgtCDR3/imgt_wide_to_properties.py "
             "output, producing properties_aggregated.tsv-style output."
         )
     )
     parser.add_argument("--input", required=True,
-                        help="Output TSV from imgt_wide_to_properties.py.")
+                        help="Output TSV from imgtCDR3/imgt_wide_to_properties.py.")
     parser.add_argument("--annotation", required=True,
                         help="Annotation CSV with columns: sample_short, "
                              "shortname, cells, genotype_short.")

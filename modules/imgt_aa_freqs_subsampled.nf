@@ -25,37 +25,37 @@ process COMPUTE_IMGT_AA_FREQS_SUBS {
     gunzip -c ${subsampled_file} | head -5
     
     # Run the first script
-    python ${projectDir}/bin/imgt_freqs.py \
+    python ${projectDir}/bin/imgtCDR3/imgt_freqs.py \
         --input ${subsampled_file} \
         --min_len ${min_len} \
         --max_len ${max_len} \
         --output ${sample_name}
 
-    echo "Files created by imgt_freqs.py:"
+    echo "Files created by imgtCDR3/imgt_freqs.py:"
     ls -la ${sample_name}_aa_freqs/
     
     echo "Content of freq_WL file:"
     head -5 ${sample_name}_aa_freqs/${sample_name}_freq_WL.tsv
     
     # Run median computation scripts
-    python ${projectDir}/bin/compute_medians.py \
+    python ${projectDir}/bin/imgtCDR3/compute_medians.py \
         --input ${sample_name}_aa_freqs/${sample_name}_freq_WL.tsv \
         --sample_name ${sample_name} \
         --output ${sample_name}_aa_freqs/${sample_name}_freq_WL_med.tsv \
         --index_columns IMGT_position AA    
     
-    python ${projectDir}/bin/compute_medians.py \
+    python ${projectDir}/bin/imgtCDR3/compute_medians.py \
         --input ${sample_name}_aa_freqs/${sample_name}_freq.tsv \
         --output ${sample_name}_aa_freqs/${sample_name}_freq_med.tsv  \
         --sample_name ${sample_name} \
 
-    python ${projectDir}/bin/compute_medians.py \
+    python ${projectDir}/bin/imgtCDR3/compute_medians.py \
     --input ${sample_name}_aa_freqs/${sample_name}_freq_WL_Vfam.tsv \
     --sample_name ${sample_name} \
     --output ${sample_name}_aa_freqs/${sample_name}_freq_WL_Vfam_med.tsv \
     --index_columns IMGT_position AA vFamilyName   
     
-    python ${projectDir}/bin/compute_medians.py \
+    python ${projectDir}/bin/imgtCDR3/compute_medians.py \
         --input ${sample_name}_aa_freqs/${sample_name}_freq_Vfam.tsv \
         --output ${sample_name}_aa_freqs/${sample_name}_freq_Vfam_med.tsv  \
         --sample_name ${sample_name} \

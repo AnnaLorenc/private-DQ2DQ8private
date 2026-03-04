@@ -1,4 +1,4 @@
-# IMGT testing script (bin/test_imgt.py)
+# IMGT testing script (bin/imgtCDR3/test_imgt.py)
 
 ## Goal
 
@@ -104,7 +104,7 @@ To validate the implementation without relying on the first script, I created a 
 Running:
 
 ```bash
-python bin/test_imgt.py \
+python bin/imgtCDR3/test_imgt.py \
   --input results_man/imgt_test/test_imgt_input.tsv \
   --output_dir results_man/imgt_test
 ```

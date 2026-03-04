@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Filter rows from a per_factor or hotelling TSV where any raw p-value < threshold.
+"""
+Helper for quick look into IMGT position testing results. Filters rows from a per_factor or hotelling TSV where any raw p-value < threshold.
+Filter rows from a per_factor or hotelling TSV where any raw p-value < threshold.
 
 Detects p-value columns automatically (any column named p_value_* but NOT q_value_*
 and NOT p_hotelling_*).

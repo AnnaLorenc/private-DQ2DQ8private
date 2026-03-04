@@ -13,7 +13,7 @@ process COMPUTE_OVERLAPS {
 
 
 """
-python ${projectDir}/bin/compute_overlaps.py \
+python ${projectDir}/bin/overlaps/compute_overlaps.py \
     --input_file ${input_file} \
     --output_file overlaps_${type}.tsv \
     --sample_start_column ${sample_start_column} 

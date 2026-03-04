@@ -4,7 +4,7 @@
 import pandas as pd
 
 # File paths
-individual_info_file = "aim_1_samples_with_newname.csv"
+individual_info_file = "data/aim_1_samples_with_newname.csv"
 samplesheet_file = "validated_samplesheet.tsv"
 output_file = "data/collated_info.csv"
 

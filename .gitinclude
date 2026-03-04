@@ -1,0 +1,16 @@
+assets/
+bin/
+config/
+data/
+lib/
+modules/
+planning/
+sandbox/scripts/
+sandbox_refactor/
+workflows/
+lymphoseq_readin.ipynb
+merge.ipynb
+*.nf
+*.config
+README.md
+.gitinclude

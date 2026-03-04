@@ -21,14 +21,14 @@ process AA_PROPERTIES_TEST{
     def exclude_cols_arg = index_columns ? "--exclude_cols ${agg_columns.join(',')}" : ""
     def baseName = file_with_counts.baseName
     """
-        python ${projectDir}/bin/imgt_wide_to_properties.py \
+        python ${projectDir}/bin/imgtCDR3/imgt_wide_to_properties.py \
         --input ${file_with_counts} \
         --property_file  ${projectDir}/${property_file} \
         --output ${baseName}_properties_wide_out.tsv \
         ${index_cols_arg}  \
         --aa_col "AA" 
 
-        python ${projectDir}/bin/properties_add_annotation.py \
+        python ${projectDir}/bin/imgtCDR3/properties_add_annotation.py \
         --input ${baseName}_properties_wide_out.tsv \
         --annotation  ${projectDir}/${annotation_file} \
         --output ${baseName}_${propname}_anno.tsv \
