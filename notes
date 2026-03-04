@@ -1,34 +1,39 @@
+REMEMBER
+git add --pathspec-from-file=.gitinclude
+
+
 1.Created the original samples' names list, and the samplesheet template. lib/create_samplesheet.sh. Output in data
 
-2. Metadata wrangling with bin/prepare_individual_names.py. Output in data
+2. Metadata wrangling with bin/preprocess/prepare_individual_names.py. Output in data
 
-3. Joined cell and genotype information with bin/collate_info.py. Output in data/collated_info.csv
+3. Joined cell and genotype information with bin/preprocess/collate_info.py. Output in data/collated_info.csv
 
 4. Installed pip install lymphoseq https://lymphoseq.readthedocs.io/en/latest/installation.html
 Cleaned the seqs: removed the suspected sequences, kept only those with vGeneFamily and Jgene available.
-split into productive and not productivewith lymphoseq_readin.py
+split into productive and not productivewith preprocess/clean_split_immunoseq.py
 
-5.;compute diversity etc with bin/extract_diversity_metrics.py
-6.;Frequencies of V/J genes, CDR3 lengths, etc with bin/compute_freqs.py
-collected diversities
+5.;compute diversity etc with bin/diversity/extract_diversity_metrics.py - on the original samples
+6.;Frequencies of V/J genes, CDR3 lengths, etc with bin/VJlen_freqs/compute_freqs.py
+collected diversities - also rarefied diversities, better version! modules/ rarefied_diversity_metrics.nf, combine_rarefied_diversity_metrics.nf (bin/diversity/rarefied_diversity_metrics.py)
 collected frequencies
 
 7.PCA
 WHY DIFFERENT!!!!! on subsamples not different
 
 8. prepared subsamples of productive subsamples - 10000; V, J, family level; as AA
-computed frequencies on those and collected them in a single file with combine_freqs_subsampled.nf and bin/combine_freqs_subsampled.py
+computed frequencies on those and collected them in a single file with combine_freqs_subsampled.nf and bin/VJlen_freqs/combine_freqs_subsampled.py
 
 9. sharing of CDR3+V pairwise between samples 
-computed for productive sequences, and for subsampled productive sequences, with bin/compute_overlaps_c.py and bin/compute_overlaps_subs.py
+computed for productive sequences, and for subsampled productive sequences, with bin/compute_overlaps_c.py and bin/overlaps/compute_overlaps_subs.py
+Better version - based on rarefactions -  bin/rarified_sharing/4.rare_pairwise_sharing.py
 
 10.
 CDR3 sequences: to IMGT system
 frequency of AAs acros positions and lengths
-Computed for each original sample and subsamples with bin/imgt_freqs.py, then median for subsamples available with compute_medians.py
+Computed for each original sample and subsamples with bin/imgtCDR3/imgt_freqs.py, then median for subsamples available with imgtCDR3/compute_medians.py
 
 11.
-reshaped/added anno data for testing with prepare_for_imgt_test.py, then run the test with test_imgt.py. With/without length
+reshaped/added anno data for testing with imgtCDR3/prepare_for_imgt_test.py, then run the test with imgtCDR3/test_imgt.py. With/without length
 
 12.
 substitute AAs by their properties (charge, hydrophobicity, etc) and do the same analyses as above for IMGT
@@ -37,6 +42,7 @@ PARTIAL, needs adding to nextflow. Hotteling T
 13. Sharing, public clonotypes.
 Bayesian approach just not feasible by the way Ibwas trying, going for rarefaction approach
 rare_publicity.py - needs as input group specification, prepared with make_groups_yml.py 
+Coonsider splitting as now the bottleneck
 
 awk -F',' 'NR==1 || $3=="E"' data/collated_info.csv | \
     python ./sandbox/rare/make_groups_yml.py \
@@ -51,6 +57,20 @@ python rare_publicity.py \
     --K 200 --M 10000 \
     --groups_file groups_E.yml \
     --output results/rare_groupE_K200_M10000.tsv
+
+full set is:
+    1.make_groups_yml.py 
+    groups_E.yml 
+    groups_N.yml
+
+    2.rare_publicity.py
+    rare_groupE_K${K}_M${M}  for E, for N
+
+    3.summarise_sharing.py \
+            sharing_summary_E_A3
+            sharing_summary_N_A3
+
+
 ======
 next steps to recode:
 
@@ -127,13 +147,13 @@ Germline sequences dominate the ends (104–107 V, 112–115 D, 118 J).
 
 
 ######### test files
-python bin/imgt_freqs.py \
+python bin/imgtCDR3/imgt_freqs.py \
   --input sandbox/test_inputs/imgt_freqs/F5302E_subsampled_test.tsv \
   --output sandbox/test_inputs/imgt_freqs/res/res 
 
 
 # combine_and_extract
-python bin/combine_and_extract_imgt_freqs.py \
+python bin/imgtCDR3/combine_and_extract_imgtCDR3/imgt_freqs.py \
   --input_files sandbox/test_inputs/combine_and_extract_imgt_freqs/F10001E_freq.tsv \
                 sandbox/test_inputs/combine_and_extract_imgt_freqs/F10002N_freq.tsv \
                 sandbox/test_inputs/combine_and_extract_imgt_freqs/F10003E_freq.tsv \
@@ -141,233 +161,6 @@ python bin/combine_and_extract_imgt_freqs.py \
 
 ######Modeling
 
-Core Problem
-
-Let:
-
-𝐷
-𝑖
-D
-i
-	​
-
- = total productive TRB templates in individual i
-
-𝑓
-𝑖
-𝑗
-f
-ij
-	​
-
- = true frequency of clonotype j in individual i
-
-Detection probability:
-
-𝑃
-(
-observed
-)
-=
-1
-−
-(
-1
-−
-𝑓
-𝑖
-𝑗
-)
-𝐷
-𝑖
-P(observed)=1−(1−f
-ij
-	​
-
-)
-D
-i
-	​
-
-
-Lower depth → higher false negatives for rare clones.
-
-So naive rule:
-
-“Sequence observed in ≥ N individuals”
-
-is biased toward:
-
-Deeply sequenced samples
-
-High-frequency clones
-
-✅ Recommended Approaches
-1️⃣ Depth-Standardized Presence via Repeated Rarefaction (Most Robust)
-
-Instead of one subsample, do:
-
-Rarefy each repertoire to the same depth (minimum depth across samples)
-
-Repeat K times (e.g., 100–500)
-
-For each clonotype, compute:
-
-Publicity score
-=
-fraction of rarefactions where present in ≥ N individuals
-Publicity score=fraction of rarefactions where present in ≥ N individuals
-
-Then define:
-
-Public = publicity score ≥ threshold (e.g., 0.9)
-
-Why this works
-
-Equalizes detection probability
-
-Preserves sequence identity
-
-Avoids arbitrary single subsample loss
-
-This is the most principled practical solution.
-
-2️⃣ Model-Based Detection Probability (Statistically Clean)
-
-Instead of subsampling, adjust by modeling detection probability.
-
-For clonotype j:
-
-𝑃
-𝑖
-𝑗
-=
-1
-−
-(
-1
-−
-𝑓
-𝑖
-𝑗
-)
-𝐷
-𝑖
-P
-ij
-	​
-
-=1−(1−f
-ij
-	​
-
-)
-D
-i
-	​
-
-
-Estimate:
-
-True sharing rate accounting for detection probability.
-
-Use a beta-binomial or hierarchical model.
-
-You compute:
-
-𝑃
-(
-truly shared in ≥ N
-)
-=
-posterior probability
-P(truly shared in ≥ N)=posterior probability
-
-This is statistically optimal but more complex.
-
-Best when:
-
-Publishing
-
-Working with large cohorts
-
-I am doing it now for a matrix of E. I need to split by cells, then matrix by genotype.
-extract CDR3s which are shared for each genotype, look on their sharing in another genotype.
-
-
-3️⃣ Frequency Thresholding Before Presence Call
-
-Define clonotype as present in sample i only if:
-
-𝑓
-𝑖
-𝑗
-≥
-𝑐
-𝐷
-𝑖
-f
-ij
-	​
-
-≥
-D
-i
-	​
-
-c
-	​
-
-
-where c = minimal molecule count (e.g., 2–3 templates).
-
-This removes singletons in deep samples dominating public calls.
-
-Better than naive presence, but still imperfect.
-
-4️⃣ Presence Probability Weighting
-
-For each clonotype:
-
-Adjusted sharing score
-=
-∑
-𝑖
-observed
-𝑖
-𝑗
-𝑃
-𝑖
-𝑗
-Adjusted sharing score=
-i
-∑
-	​
-
-P
-ij
-	​
-
-observed
-ij
-	​
-
-	​
-
-
-Downweights high-depth detection bias.
-
-Less common but mathematically defensible.
-
-🚫 What Not To Do
-
-❌ Raw presence count
-
-❌ Raw frequency threshold across all samples
-
-❌ Single rarefaction only
-
-🎯 What I Would Recommend
 
 Given your workflow (already subsampling other metrics):
 
@@ -439,389 +232,7 @@ Publication-ready
 
 🔬 MODEL STRUCTURE (Computationally Practical Version)
 
-We use an occupancy model with imperfect detection (ecology framework adapted to TCRs).
-
-For clonotype j in individual i:
-
-𝑌
-𝑖
-𝑗
-∈
-{
-0
-,
-1
-}
-Y
-ij
-	​
-
-∈{0,1} observed presence
-
-𝑍
-𝑖
-𝑗
-∈
-{
-0
-,
-1
-}
-Z
-ij
-	​
-
-∈{0,1} latent true presence
-
-Detection probability:
-
-𝑝
-𝑖
-=
-1
-−
-(
-1
-−
-𝑓
-ˉ
-)
-𝐷
-𝑖
-p
-i
-	​
-
-=1−(1−
-f
-ˉ
-	​
-
-)
-D
-i
-	​
-
-
-We treat detection probability as depth-dependent only
-(you can later extend with clone-specific frequency model).
-
-🧠 Simplified but Rigorous Hierarchical Model
-𝑍
-𝑖
-𝑗
-∼
-𝐵
-𝑒
-𝑟
-𝑛
-𝑜
-𝑢
-𝑙
-𝑙
-𝑖
-(
-𝜋
-𝑗
-)
-Z
-ij
-	​
-
-∼Bernoulli(π
-j
-	​
-
-)
-𝑌
-𝑖
-𝑗
-∼
-𝐵
-𝑒
-𝑟
-𝑛
-𝑜
-𝑢
-𝑙
-𝑙
-𝑖
-(
-𝑍
-𝑖
-𝑗
-⋅
-𝑝
-𝑖
-)
-Y
-ij
-	​
-
-∼Bernoulli(Z
-ij
-	​
-
-⋅p
-i
-	​
-
-)
-𝜋
-𝑗
-∼
-𝐵
-𝑒
-𝑡
-𝑎
-(
-𝑎
-,
-𝑏
-)
-π
-j
-	​
-
-∼Beta(a,b)
-
-We marginalize over 
-𝑍
-𝑖
-𝑗
-Z
-ij
-	​
-
- to avoid discrete sampling.
-
-Marginal likelihood:
-
-𝑃
-(
-𝑌
-𝑖
-𝑗
-=
-1
-)
-=
-𝜋
-𝑗
-𝑝
-𝑖
-P(Y
-ij
-	​
-
-=1)=π
-j
-	​
-
-p
-i
-	​
-
-𝑃
-(
-𝑌
-𝑖
-𝑗
-=
-0
-)
-=
-1
-−
-𝜋
-𝑗
-𝑝
-𝑖
-P(Y
-ij
-	​
-
-=0)=1−π
-j
-	​
-
-p
-i
-	​
-
-📦 Python Implementation (PyMC v5)
-import numpy as np
-import pymc as pm
-import arviz as az
-
-
-def fit_public_model(
-    Y_matrix: np.ndarray,      # shape (n_clones, n_individuals)
-    depths: np.ndarray,        # shape (n_individuals,)
-    min_shared: int = 3,
-    draws: int = 2000,
-    tune: int = 2000,
-    target_accept: float = 0.9,
-):
-    """
-    Bayesian occupancy model correcting for sequencing depth.
-
-    Returns:
-        posterior object
-        probability each clone is shared in >= min_shared individuals
-    """
-
-    n_clones, n_individuals = Y_matrix.shape
-
-    # Depth-based detection probability
-    # small pseudo-frequency assumption
-    f_bar = 1e-5
-    p_detect = 1 - (1 - f_bar) ** depths
-    p_detect = np.clip(p_detect, 1e-6, 1 - 1e-6)
-
-    with pm.Model() as model:
-
-        # Hyperprior for sharing probability
-        a = pm.Exponential("a", 1.0)
-        b = pm.Exponential("b", 1.0)
-
-        # Clone-level true presence probability
-        pi = pm.Beta("pi", alpha=a, beta=b, shape=n_clones)
-
-        # Detection probability per individual
-        p = pm.Data("p", p_detect)
-
-        # Marginalized likelihood
-        prob_obs = pi[:, None] * p[None, :]
-        prob_obs = pm.math.clip(prob_obs, 1e-9, 1 - 1e-9)
-
-        Y = pm.Bernoulli(
-            "Y",
-            p=prob_obs,
-            observed=Y_matrix
-        )
-
-        trace = pm.sample(
-            draws=draws,
-            tune=tune,
-            target_accept=target_accept,
-            chains=4,
-            cores=4,
-        )
-
-    # ---- Step 5: Compute probability shared >= N ----
-
-    pi_samples = trace.posterior["pi"].values  # shape: chains, draws, clones
-    pi_samples = pi_samples.reshape(-1, n_clones)
-
-    prob_shared = []
-
-    for j in range(n_clones):
-        # For each posterior sample, simulate sharing count
-        shared_counts = np.random.binomial(
-            n_individuals,
-            pi_samples[:, j]
-        )
-        prob = np.mean(shared_counts >= min_shared)
-        prob_shared.append(prob)
-
-    prob_shared = np.array(prob_shared)
-
-    return trace, prob_shared
-
-📊 Calling Public Clones (Step 5)
-trace, prob_shared = fit_public_model(Y_matrix, depths, min_shared=5)
-
-public_mask = prob_shared >= 0.95
-public_clones = np.where(public_mask)[0]
-
-
-This yields:
-
-Posterior sharing probability per clone
-
-Robust classification
-
-🧪 Step 6 — Validation & Sensitivity
-6.1 Prior Sensitivity
-
-Re-run with:
-
-a = pm.Exponential("a", 0.5)
-b = pm.Exponential("b", 0.5)
-
-
-Compare posterior public clone set.
-
-6.2 Compare with Rarefaction
-
-Perform:
-
-200 subsampling runs
-
-Compare overlap with Bayesian calls
-
-Report:
-
-𝐽
-𝑎
-𝑐
-𝑐
-𝑎
-𝑟
-𝑑
- 
-𝑖
-𝑛
-𝑑
-𝑒
-𝑥
-=
-∣
-𝐴
-∩
-𝐵
-∣
-∣
-𝐴
-∪
-𝐵
-∣
-Jaccard index=
-∣A∪B∣
-∣A∩B∣
-	​
-
-6.3 Posterior Predictive Check
-with model:
-    ppc = pm.sample_posterior_predictive(trace)
-
-
-Verify:
-
-Observed sharing distribution
-
-Model-generated sharing distribution
-
-They should align.
-
-🧬 What This Model Corrects
-
-✔ Variable depth
-✔ False negatives in shallow repertoires
-✔ Overcalling due to deep repertoires
-✔ Provides uncertainty
-
-⚠ Important Assumption
-
-This version assumes:
-
-Detection probability depends only on depth
-
-Clone frequency distribution is similar across individuals
-
-We fit a hierarchical occupancy model correcting for depth-dependent detection probability. Public clonotypes were defined as those with posterior probability ≥0.95 of being present in at least N individuals.
-
+W
 I have TRB repertoires from 3 groups of individuals. I would like to build a ML model which would find  how these groups differ in their TRB repertoires. Sharing sequences are not very probable, but should be an option; I suspect it is more about specific aminoacid properties of these sequences. What modelling would be appropriate and state of the art, for publication?
 
 Got it — you’re essentially asking about ML models for TCR repertoire classification (multi-group) based on TRB sequences, where exact sequence sharing is rare, and you suspect differences are biophysical/structural properties of the CDR3 sequences. I can break this down carefully.

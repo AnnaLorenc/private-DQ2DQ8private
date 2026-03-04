@@ -14,7 +14,7 @@ process COMPUTE_FREQS_SUBSAMPLED {
     script:
     def index_columns_arg = index_columns.join(' ')
     """
-    python ${projectDir}/bin/compute_freqs_subsampled.py \
+    python ${projectDir}/bin/VJlen_freqs/compute_freqs_subsampled.py \
         --input_file ${input_file} \
         --output_file ${type}/${sample_name}.tsv.gz \
         --index_columns ${index_columns_arg } \

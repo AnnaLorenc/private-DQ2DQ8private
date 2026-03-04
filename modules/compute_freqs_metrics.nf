@@ -22,7 +22,7 @@ else
 fi
 
 # Run the Python script with the modified output name
-python ${projectDir}/bin/compute_freqs.py \
+python ${projectDir}/bin/VJlen_freqs/compute_freqs.py \
     --file_path ${sample_file} \
     --sample ${sample_name}_\${sample_type} \
     --output_loc .

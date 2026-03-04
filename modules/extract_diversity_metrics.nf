@@ -22,7 +22,7 @@ else
 fi
 
 # Run the Python script with the modified output name
-python ${projectDir}/bin/extract_diversity_metrics.py \
+python ${projectDir}/bin/diversity/extract_diversity_metrics.py \
     --file_path ${sample_file} \
     --sample ${sample_name}_\${sample_type} \
     --output_loc .

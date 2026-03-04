@@ -34,7 +34,7 @@ process AA_PROPERTIES_TEST{
         --output ${baseName}_${propname}_anno.tsv \
     #    ${exclude_cols_arg}
 
-        python ${projectDir}/bin/aa_properties_test.py \
+        python ${projectDir}/bin/imgtCDR3/aa_properties_test.py \
         --input ${baseName}_${propname}_anno.tsv \
         ${agg_columns_arg} \
         --propname ${propname} 

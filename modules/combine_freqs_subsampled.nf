@@ -14,7 +14,7 @@ process COMBINE_FREQS_SUBSAMPLED {
     script:
     def input_files_all = input_files.join(' ')
     """
-    python ${projectDir}/bin/combine_freqs_subsampled.py \
+    python ${projectDir}/bin/VJlen_freqs/combine_freqs_subsampled.py \
         --input_files ${input_files_all} \
         --output_file ${output_file}.tsv
     """

@@ -28,7 +28,7 @@ else
 fi
 
 # Run the Python script with the modified output name
-python ${projectDir}/bin/rarefied_diversity_metrics.py \
+python ${projectDir}/bin/diversity/rarefied_diversity_metrics.py \
     --file_path ${sample_file} \
     --group_by 'sample_short' \
     --iterations ${iterations} \

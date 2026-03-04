@@ -217,6 +217,10 @@ def _diversity_indices_polars(
                     lambda s: inverse_simpson(s),
                     return_dtype=pl.Float64
                 ).first().alias("inverse_simpson"),
+                pl.col(count_col).map_elements(
+                    lambda s: shannon_entropy(s.to_numpy() / s.to_numpy().sum()),
+                    return_dtype=pl.Float64
+                ).first().alias("shannon_index"),
             ])
             .with_columns(
                 (pl.col("total_sequences") / pl.col("unique_sequences")).alias("convergence")
@@ -273,6 +277,7 @@ def _diversity_indices_pandas(
                 "top_sequence": counts.max() / counts.sum(),
                 "convergence": len(group) / n_unique,
                 "inverse_simpson": inverse_simpson(counts),
+                "shannon_index": shannon_entropy(frequencies),
             })
 
         results = data.groupby(group_by).apply(calculate_metrics).reset_index()
@@ -340,6 +345,7 @@ def _perform_rarefaction_polars(
                 "top_sequence": float(seq_counts.max() / seq_counts.sum()),
                 "convergence": float(len(sampled_seqs)) / n_unique,
                 "inverse_simpson": inverse_simpson(seq_counts),
+                "shannon_index": shannon_entropy(frequencies),
             })
 
         # Average across iterations using Polars
@@ -394,6 +400,7 @@ def _perform_rarefaction_pandas(
                 "top_sequence": seq_counts.max() / seq_counts.sum(),
                 "convergence": len(sampled_seqs) / n_unique,
                 "inverse_simpson": inverse_simpson(seq_counts),
+                "shannon_index": shannon_entropy(frequencies),
             })
 
         avg_metrics = pd.DataFrame(iteration_results).mean().to_dict()

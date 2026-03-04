@@ -71,11 +71,13 @@ Arguments
 """
 
 import argparse
+import gc
 import os
 import sys
 
 import numpy as np
 import polars as pl
+import gc
 
 
 # ---------------------------------------------------------------------------
@@ -246,8 +248,8 @@ def precompute_sparse(count_matrix: np.ndarray) -> list:
         if len(nz) == 0:
             cols.append((nz, np.array([])))
             continue
-        p = col[nz].astype(np.float64)
-        p /= p.sum()
+        col_values = col[nz].astype(np.float64)
+        p = col_values / col_values.sum()
         cols.append((nz, p))
     return cols
 
@@ -347,6 +349,9 @@ def run_rarefaction(
         # Accumulate sharing per group
         for gname, g_idx in group_indices.items():
             results[gname][:, k] = presence[:, g_idx].sum(axis=1)
+        del presence
+        if (k + 1) % 10 == 0:
+            gc.collect()
 
     return results
 
@@ -478,7 +483,7 @@ def main() -> None:
         sys.exit("ERROR: No clonotypes remaining after filtering. Check --samples.")
 
     # ---- Extract count matrix ----
-    count_matrix = df.select(samples).to_numpy().astype(np.float64)
+    count_matrix = df.select(samples).to_numpy().astype(np.int32)
     index_df = df.select(index_cols)
 
     # ---- Run rarefaction ----
