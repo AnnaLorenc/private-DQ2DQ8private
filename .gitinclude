@@ -2,11 +2,11 @@ assets/
 bin/
 config/
 data/
-for_plots_R/
+for_plots_R/*
 lib/
 modules/
 planning/
-sandbox/scripts/
+sandbox/scripts/*
 sandbox_refactor/
 workflows/
 lymphoseq_readin.ipynb

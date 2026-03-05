@@ -12,6 +12,7 @@ source("/Users/ania/sangermac/sr_projects/DR3DR4/analysis_rusted/scripts/plot_cd
 
 
 annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_info.csv"
+
 diversities_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/diversity_metrics_rarefied/cleaner_diversities_summary.txt"
 freqs_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/combined_freqs/productive_subs_freqs.tsv.tsv"
 
@@ -26,7 +27,8 @@ colors_two <- c("darkgrey","darkgreen")
 
 anno <- read_csv(annotation_loc)%>%
   mutate(source=substr(newname,1,1))%>%
-  rename(patient=shortname)
+  rename(patient=shortname)%>%
+  unique
 
 #adding anonymous IDs
 anonym_patient_ids <- 
@@ -39,7 +41,10 @@ anno %>%
 
 anno <- anno %>%
   inner_join(., anonym_patient_ids%>%ungroup%>%select(patient, anonym_patient_id), by=c("patient"))%>%
-  mutate(anonym_sample_id=paste0(anonym_patient_id, cells))
+  mutate(anonym_sample_id=paste0(anonym_patient_id, cells))%>%
+  mutate(stage=ifelse(source=="F","stage 3","stage 2"),
+         cells_long=ifelse(cells=="N","naive","memory"),
+         geno=gsub(pat=".*o", rep="", genotype_short))
 
 
 ##### ##### ##### ##### ##### ##### ##### ##### ##### ##### 
@@ -195,13 +200,13 @@ length_db_raref <- read_tsv(freqs_loc )%>%
                             genotype_short,
                             sample_short,source,
                             anonym_patient_id,
-                            anonym_sample_id))%>%unique(), by=c("sample_short"))
-  
-length_db_raref <- length_db_raref%>%
-  mutate(stage=ifelse(source=="F","stage 3","stage 2"),
-         cells=ifelse(cells=="N","naive","memory"),
-         geno=gsub(pat=".*o", rep="", genotype_short))
+                            anonym_sample_id,
+                            cells_long,
+                            geno,
+                            stage))%>%unique(), by=c("sample_short"))
 
+##### #### Boxplots per stage
+##### #### 
 
 ggplot(
   length_db_raref,
@@ -243,8 +248,10 @@ ggplot(
   ) +
   scale_fill_manual(values=colors_two)+
   scale_color_manual(values=colors_two)
-
 ggsave(file.path(length_dir, "length_db.png"))
+
+##### #### Boxplots per stage cumulative
+##### #### 
 
 
 length_db_raref %>%
@@ -293,6 +300,8 @@ VJ <- read_tsv(freqs_loc )%>%
   select(vj=group, ends_with("subs")) %>%
   mutate(across(where(is.numeric), ~ replace_na(.x, 0)))
 
+###### selected TRBV across genotypes
+######
 
 V_J %>%
   pivot_longer(cols = c(ends_with("subs")), names_to = "sample_short") %>%
@@ -303,16 +312,15 @@ V_J %>%
                             genotype_short,
                             sample_short,source,
                             anonym_patient_id,
-                            anonym_sample_id))%>%unique(), by=c("sample_short")) %>%
+                            anonym_sample_id,
+                            geno,
+                            cells_long,
+                            stage))%>%unique(), by=c("sample_short")) %>%
   filter(((vj %in% c("TCRBV15", "TCRBV05"))&(cells == "N")) |
            ((vj %in% c("TCRBV18", "TCRBV19", "TCRBV20")) & cells == "E"))%>%
   mutate(
-    genotype = case_when(genotype_short =="homoDQ2" ~ "DQ2",
-                         genotype_short =="heteroDQ2DQ8" ~"DQ2DQ8",
-                         genotype_short =="homoDQ8" ~ "DQ8"),
-    genotype = factor(genotype, levels = c("DQ2", "DQ2DQ8",  "DQ8")),
+    genotype = factor(geno, levels = c("DQ2", "DQ2DQ8",  "DQ8")),
     cells = ifelse(cells == "E", "MEMORY", "NAIVE"),
-    stage = c("stage 2", "stage 3")[grepl(pat="F", sample_short)+1]
   ) %>%
   ggplot(aes(
     group = genotype,
@@ -338,7 +346,9 @@ V_J %>%
 ggsave(filename =file.path(pca_dir, "SuppFig4.png"))
 
 
-###### frequency of VJ usage, naive versus memory
+###### selected TRBV , naive versus memory
+######
+
 V_J %>%
   pivot_longer(cols = c(ends_with("subs")), names_to = "sample_short") %>%
   #  filter(value > 0) %>%
@@ -348,15 +358,14 @@ V_J %>%
                             genotype_short,
                             sample_short,source,
                             anonym_patient_id,
-                            anonym_sample_id))%>%unique(), by=c("sample_short")) %>%
+                            anonym_sample_id,
+                            geno,
+                            cells_long,
+                            stage))%>%unique(), by=c("sample_short")) %>%
   filter(vj %in% c("TCRBV16", "TCRBV02"))%>%
   mutate(
-    genotype = case_when(genotype_short =="homoDQ2" ~ "DQ2",
-                         genotype_short =="heteroDQ2DQ8" ~"DQ2DQ8",
-                         genotype_short =="homoDQ8" ~ "DQ8"),
-    genotype = factor(genotype, levels = c("DQ2", "DQ2DQ8",  "DQ8")),
+    genotype = factor(geno, levels = c("DQ2", "DQ2DQ8",  "DQ8")),
     cells = ifelse(cells == "E", "MEMORY", "NAIVE"),
-    stage = c("stage 2", "stage 3")[grepl(pat="F", sample_short)+1]
   ) %>%
   ggplot(aes(
     group = cells,
@@ -379,12 +388,11 @@ V_J %>%
 
 ggsave(filename = file.path(pca_dir, "SuppFig3B.png"))
 
+
+
+###### PCA naive (V and J separatedly)
 ######
 
-
-
-
-###### PCA naive
 pca_mat <- V_J%>%select(c(vj, ends_with("N_subs")))%>%
 rename_with(., ~gsub(pat="_subs", rep="",.x))%>%
 data.frame(row.names = "vj")%>%
@@ -414,7 +422,8 @@ y = paste0("PC2 (", round(summary(pca_res)$importance[2,2]*100,1), "%)")
 ggsave(file.path(pca_dir, "fig2C.png"))
 
 
-###### PCA memory
+###### PCA memory (V and J separatedly)
+############
 pca_mat <- V_J%>%select(c(vj, ends_with("E_subs")))%>%
   rename_with(., ~gsub(pat="_subs", rep="",.x))%>%
   data.frame(row.names = "vj")%>%
