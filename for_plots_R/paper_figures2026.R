@@ -4,11 +4,12 @@ library(tidyverse)
 library(kableExtra)
 library(scales)
 library(ggpubr)
+library(rstatix)
 
 #knitr::opts_chunk$set( message=FALSE, fig.width = 8, fig.height = 12, warning = FALSE)
 
 
-source("/Users/ania/sangermac/sr_projects/DR3DR4/analysis_rusted/scripts/plot_cdr3.R") 
+source("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_cdr3.R") 
 
 
 annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_info.csv"
@@ -344,6 +345,26 @@ V_J %>%
   ggtitle("Examples of TRBV usage difference")
 
 ggsave(filename =file.path(pca_dir, "SuppFig4.png"))
+
+
+#statistical testing
+signif_vj_oo <- V_J %>%
+  pivot_longer(cols = c(ends_with("subs")), names_to = "sample_short") %>%
+  #  filter(value > 0) %>%
+  mutate(sample_short=gsub(pat="_subs", rep="",sample_short))%>%
+  left_join(anno%>%select(c(cells,
+                            patient,
+                            genotype_short,
+                            sample_short,source,
+                            anonym_patient_id,
+                            anonym_sample_id,
+                            geno,
+                            cells_long,
+                            stage))%>%unique(), by=c("sample_short")) %>%
+  group_by(cells, vj)%>%
+  t_test(value ~ geno,var.equal=FALSE)%>%filter(p.adj<0.05, group1%in%c("DQ2","DQ8"),  group2%in%c("DQ2","DQ8"))
+
+
 
 
 ###### selected TRBV , naive versus memory
