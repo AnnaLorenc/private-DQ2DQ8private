@@ -20,6 +20,7 @@ properties_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/aa_prope
 properties <- c("KF", "VHS")
 properties_tests <- c("WL",  "full",  "WL_vfam",     "full_vfam")
 properties_res <- c("hotelling", "per_factor")
+properties_prefixes <-c("comb_aa_imgt_", "_subs_rows_","_anno_")
 #"comb_aa_imgt_" (WL) "_subs_rows_", (VHS) "_anno_" (VHS) (hotelling).tsv
 
 
@@ -97,7 +98,7 @@ results_imgt_WL%>% #one celltype=158 tests, 19 significant (2 exp)
   filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
   mutate(imgt =change_imgt_format(IMGT_position))%>%
   rename("aa"=AA)%>%filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8)
-
+####### PLOT
 
 ############ VFAM
 
@@ -124,6 +125,61 @@ VFAM=
  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
     mutate(imgt =change_imgt_format(IMGT_position))%>%
    rename("aa"=AA)%>%filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8)%>%select(-c(ends_with("eo"), starts_with("t_stat"), starts_with("n_group")))
+VFAM_all=
+  results_imgt_VFAM %>% 
+  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%
+  rename("aa"=AA)%>%filter(cells=="N")%>%select(-c(ends_with("eo"), starts_with("t_stat"), starts_with("n_group")))
 
-inner_join(VFAM, naive, by=c("cells","IMGT_position","imgt","aa","length", "label_group_a_oo" ,"label_group_b_oo"))
+#Attempt to show that these aminoacids are not driven by TRBV gene - for significant aminoacids, when testing is repeated AFTER splitting into TRBV gene groups, some groups remain significant (eventhough much lower power etc)
+left_join(naive,
+          VFAM_all,  by=c("cells","IMGT_position","imgt","aa","length", "label_group_a_oo" ,"label_group_b_oo"))%>%
+  group_by( IMGT_position, aa ,   length)%>%
+  summarise(TRBV_tested=length(vFamilyName),
+            TRBV_sign=sum(p_value_oo.y<0.05, na.rm=T),
+            TRBV_sign_and_vjdiff=sum((vFamilyName%in%(signif_vj_oo%>%filter(cells=="N")%>%.$vj))&p_value_oo.y<0.05))%>%arrange(length, IMGT_position, aa )
 
+#######what about simple correlation Vgene versus AA (across lengths/imgt positions)?
+
+#####################
+##### PROPERITES
+###################
+
+properties_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/aa_properties"
+properties <- c("KF", "VHS")
+properties_tests <- c("WL",  "full",  "WL_vfam",     "full_vfam")
+properties_res <- c("hotelling", "per_factor")
+properties_prefixes <-c("comb_aa_imgt_", "_subs_rows_","_anno_")
+#"comb_aa_imgt_" (WL) "_subs_rows_", (VHS) "_anno_" (VHS) (hotelling).tsv
+
+results_KF <- read_tsv(file.path(properties_loc,
+                                 file.path(properties[1],
+                                           file.path(paste0(properties[1],"_properties_results"),
+                                                     paste0(properties_prefixes[1],properties_tests[2],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[1], ".tsv")))))
+
+results_KF %>%filter(!is.na(q_value_oo))%>%filter(!(IMGT_position%in%as.character(c(104:110, 113:118))),q_value_oo<0.05)
+
+
+
+results_KF_by_fact <- read_tsv(file.path(properties_loc,
+                                 file.path(properties[1],
+                                           file.path(paste0(properties[1],"_properties_results"),
+                                                     paste0(properties_prefixes[1],properties_tests[2],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[2], ".tsv")))))
+
+
+results_KF_by_fact%>%
+  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%
+  filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8,q_hotelling_oo<0.05)%>%select(-c(ends_with("eo"), starts_with("t_stat"), starts_with("n_group")))%>%arrange(cells, IMGT_position, prop, length)%>%data.frame()
+
+
+results_KF_WL_VFAM_by_fact <- read_tsv(file.path(properties_loc,
+                                         file.path(properties[1],
+                                                   file.path(paste0(properties[1],"_properties_results"),
+                                                             paste0(properties_prefixes[1],properties_tests[3],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[2], ".tsv")))))
+
+
+results_KF_WL_VFAM_by_fact %>%
+  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%
+  filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8,q_hotelling_oo<0.05)%>%select(-c(ends_with("eo"), starts_with("t_stat"), starts_with("n_group")))%>%arrange(cells, IMGT_position, prop, vFamilyName)%>%data.frame()
