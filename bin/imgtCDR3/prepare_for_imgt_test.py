@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#prepare_for_imgt_test.py
 """Reshape IMGT AA median frequency tables to long format for testing.
 
 This script:

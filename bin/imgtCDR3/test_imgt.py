@@ -13,11 +13,13 @@ Example row:
 
 The script fits simple two-group comparisons for each combination of
     (cells + index columns)
-under two grouping schemes. By default, the index columns are
+under four grouping schemes. By default, the index columns are
     (length, IMGT_position, AA).
 
   1. grouping1 "homhom": hoDQ2 versus hoDQ8
   2. grouping2 "hethom": heDQ2DQ8 versus (any of hoDQ2, hoDQ8)
+  3. grouping3 "heDQ8": heDQ2DQ8 versus hoDQ8
+  4. grouping4 "heDQ2": heDQ2DQ8 versus hoDQ2
 
 For each group and each grouping, it computes:
   - n per group,
@@ -35,7 +37,7 @@ combination, run:
 Outputs
 -------
 Two TSV files are written to --output_dir (default: results_man/imgt_test):
-    - imgt_lm_combined.tsv : homhom ("_oo") and hethom ("_eo") results joined
+    - imgt_lm_combined.tsv : homhom ("_oo"), hethom ("_eo"), heDQ8 ("_do"), and heDQ2 ("_po") results joined
         side by side by index columns (cells, length, IMGT_position, AA).
     - imgt_lm_combined_cells.tsv : paired N vs E tests per
         (length, IMGT_position, AA), with statistics for all individuals and for
@@ -303,6 +305,32 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
     print("  group_a (heDQ2DQ8) n_samples:", int(n_hethom_a))
     print("  group_b (hom) n_samples:", int(n_hethom_b))
 
+    # Grouping3: heDQ8 (heDQ2DQ8 vs hoDQ8)
+    n_heDQ8_a = (
+        unique_samples.loc[unique_samples["genotype"].isin(["heDQ2DQ8"]), "sample"]
+        .nunique()
+    )
+    n_heDQ8_b = (
+        unique_samples.loc[unique_samples["genotype"].isin(["hoDQ8"]), "sample"]
+        .nunique()
+    )
+    print("heDQ8 grouping (heDQ2DQ8 vs hoDQ8):")
+    print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ8_a))
+    print("  group_b (hoDQ8) n_samples:", int(n_heDQ8_b))
+
+    # Grouping4: heDQ2 (heDQ2DQ8 vs hoDQ2)
+    n_heDQ2_a = (
+        unique_samples.loc[unique_samples["genotype"].isin(["heDQ2DQ8"]), "sample"]
+        .nunique()
+    )
+    n_heDQ2_b = (
+        unique_samples.loc[unique_samples["genotype"].isin(["hoDQ2"]), "sample"]
+        .nunique()
+    )
+    print("heDQ2 grouping (heDQ2DQ8 vs hoDQ2):")
+    print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ2_a))
+    print("  group_b (hoDQ2) n_samples:", int(n_heDQ2_b))
+
     # Ensure requested index columns are present
     missing_idx = [c for c in index_columns if c not in df.columns]
     if missing_idx:
@@ -315,6 +343,8 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
 
     results_homhom: List[Dict[str, float]] = []
     results_hethom: List[Dict[str, float]] = []
+    results_heDQ8: List[Dict[str, float]] = []
+    results_heDQ2: List[Dict[str, float]] = []
 
     print("Running per-position tests for each combination of cells + index columns")
 
@@ -359,11 +389,45 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
             row.update(stats_hethom)
             results_hethom.append(row)
 
+        # grouping3: heDQ2DQ8 vs hoDQ8
+        stats_heDQ8 = compute_two_group_stats(
+            values=values,
+            genotypes=genotypes,
+            samples=samples,
+            group_a=["heDQ2DQ8"],
+            group_b=["hoDQ8"],
+            label_a="heDQ2DQ8",
+            label_b="hoDQ8",
+        )
+        if stats_heDQ8 is not None:
+            row = {"cells": cells}
+            row.update({name: val for name, val in zip(index_columns, index_vals)})
+            row.update(stats_heDQ8)
+            results_heDQ8.append(row)
+
+        # grouping4: heDQ2DQ8 vs hoDQ2
+        stats_heDQ2 = compute_two_group_stats(
+            values=values,
+            genotypes=genotypes,
+            samples=samples,
+            group_a=["heDQ2DQ8"],
+            group_b=["hoDQ2"],
+            label_a="heDQ2DQ8",
+            label_b="hoDQ2",
+        )
+        if stats_heDQ2 is not None:
+            row = {"cells": cells}
+            row.update({name: val for name, val in zip(index_columns, index_vals)})
+            row.update(stats_heDQ2)
+            results_heDQ2.append(row)
+
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Build dataframes and suffix statistic columns with grouping tags
     df_homhom = pd.DataFrame(results_homhom) if results_homhom else pd.DataFrame()
     df_hethom = pd.DataFrame(results_hethom) if results_hethom else pd.DataFrame()
+    df_heDQ8 = pd.DataFrame(results_heDQ8) if results_heDQ8 else pd.DataFrame()
+    df_heDQ2 = pd.DataFrame(results_heDQ2) if results_heDQ2 else pd.DataFrame()
 
     # Index columns for merging genotype-comparison results: cells + index_columns
     index_cols = ["cells"] + index_columns
@@ -380,22 +444,37 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
             columns={c: f"{c}_eo" for c in stats_cols_hethom}
         )
 
-    if df_homhom.empty and df_hethom.empty:
-        print("No valid homhom or hethom comparisons produced any results.")
+    if not df_heDQ8.empty:
+        stats_cols_heDQ8 = [c for c in df_heDQ8.columns if c not in index_cols]
+        df_heDQ8 = df_heDQ8.rename(
+            columns={c: f"{c}_do" for c in stats_cols_heDQ8}
+        )
+
+    if not df_heDQ2.empty:
+        stats_cols_heDQ2 = [c for c in df_heDQ2.columns if c not in index_cols]
+        df_heDQ2 = df_heDQ2.rename(
+            columns={c: f"{c}_po" for c in stats_cols_heDQ2}
+        )
+
+    if df_homhom.empty and df_hethom.empty and df_heDQ8.empty and df_heDQ2.empty:
+        print("No valid comparisons produced any results.")
         return
 
-    if df_homhom.empty:
-        df_combined = df_hethom.copy()
-    elif df_hethom.empty:
-        df_combined = df_homhom.copy()
-    else:
-        df_combined = pd.merge(
-            df_homhom,
-            df_hethom,
-            on=index_cols,
-            how="outer",
-            sort=True,
-        )
+    # Start with the first non-empty dataframe
+    df_combined = None
+    for df_part in [df_homhom, df_hethom, df_heDQ8, df_heDQ2]:
+        if df_part.empty:
+            continue
+        if df_combined is None:
+            df_combined = df_part.copy()
+        else:
+            df_combined = pd.merge(
+                df_combined,
+                df_part,
+                on=index_cols,
+                how="outer",
+                sort=True,
+            )
 
     out_path = output_dir / "imgt_lm_combined.tsv"
     print(f"Writing combined results to: {out_path}")

@@ -298,6 +298,7 @@ workflow {
 	RUN_IMGT_TEST_WL(PREP_COMB_IMGT_TEST_WL.out.imgt_test_input, index_cols_WL)
 
 
+
     def combined_vfam = COMBINE_IMGT_AA_FREQS_VFAM_MED.out.combined_subs_rows_freq
         .combine(COMBINE_IMGT_AA_FREQS_VFAM_MED.out.combined_subs_counts)
 

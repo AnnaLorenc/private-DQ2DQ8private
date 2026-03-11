@@ -1,3 +1,14 @@
+Priorites
+summary slides with what I have done till now
+missing parts: what is the easiest?
+# OOF repertoire have similar V/J usage across genotypes, showing that recombination events are not linked to the DQ status TO BE DONE - OOF/ priority:2
+# Public sequences:Sharing of TCRB sequences is highest between individuals from the same genotype and lowest for the individuals of two opposite homozygous phenotypes
+# { pending results, as the public sequences were analysed for the memory cells only: public sequences sharing} TO BE DONE
+# { Aminoacid usage: genotype-unique TRBs – where do they fall in this pattern } TO BE DONE
+
+5302E_subs_rows
+/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/imgt_aa_combined/comb_aa_imgt_WL_subs_rows.tsv
+
 REMEMBER
 git add --pathspec-from-file=.gitinclude
 
@@ -451,3 +462,28 @@ Repertoire-level aggregation
 Cross-validation & feature interpretation
 
 DeepTCRhttps://github.com/sidhomj/DeepTCR.git
+
+Write  tidyverse-based function to visualise aminoacid preferences.
+Your input shape:
+cells IMGT_position aa    n_group_a_oo n_group_b_oo mean_group_a_oo mean_group_b_oo cohens_d_oo t_stat_oo df_oo   p_value_oo label_group_a_oo label_group_b_oo imgt 
+   <chr> <chr>         <chr>        <dbl>        <dbl>           <dbl>           <dbl>       <dbl>     <dbl> <dbl>        <dbl> <chr>            <chr>            <chr>
+ 1 E     111           Q               20           21         0.0513          0.0544       -0.884     -2.83    39 0.00731      hoDQ2            hoDQ8            111  
+ 2 E     111           T               20           21         0.0838          0.0886       -1.67      -5.34    39 0.00000420   hoDQ2            hoDQ8            111  
+ 3 E     111A          D               20           21         0.0283          0.0255        1.19       3.80    39 0.000493     hoDQ2            hoDQ8            111.1
+ 4 E     111A          T               20           21         0.0680          0.0719       -1.17      -3.74    39 0.000583     hoDQ2            hoDQ8            111.1
+ 5 E     112           D               20           21         0.0337          0.0303        1.54       4.93    39 0.0000158    hoDQ2            hoDQ8            112  
+ 6 E     112           E               20           21         0.0272          0.0246        1.37       4.39    39 0.0000845    hoDQ2            hoDQ8            112  
+ 7 E     112           K               20           21         0.00957         0.0117       -2.14      -6.83    39 0.0000000362 hoDQ2            hoDQ8            112  
+ 8 E     112           N               20           21         0.0409          0.0440       -0.984     -3.15    39 0.00312      hoDQ2            hoDQ8            112  
+ 9 E     112           W               20           21         0.0114          0.00996       1.22       3.90    39 0.000367     hoDQ2            hoDQ8            112  
+10 E     112A          G               20           21         0.269           0.258         0.911      2.92    39 0.00585      hoDQ2            hoDQ8            112.1
+
+Positions within the sequence are in the field imgt and their order is 104:111, 111.1, 111.2...112.4,112.3,112.2,112.1,112,113:118
+aminoacids are in the field aa
+the function should take as inputs:
+- the data frame as above
+- cutoffs for p-value and Cohen's d to determine which amino acids are significantly different between groups
+- a list of positions to include in the plot (e.g., 104:118)
+- a color scheme for the amino acids (mapping between aminoscids and colors)
+The output should be a ggplot object showing the amino acid preferences across the specified positions, similar to letter logo. Preferences leading to positive coens d should be above the x-axis, and those leading to negative cohen's d should be below the x-axis. The height of the letters should be proportional to the absolute value of Cohen's d, and the color should correspond to the amino acid. Only amino acids that pass the specified cutoffs for p-value and Cohen's d should be included in the plot.
+and negative Cohen's D below the axis. The height of the letters should be proportional to the absolute value of Cohen's D, and the color should correspond to the amino acid. Only amino acids that pass the specified cutoffs for p-value and Cohen's D should be included in the plot.

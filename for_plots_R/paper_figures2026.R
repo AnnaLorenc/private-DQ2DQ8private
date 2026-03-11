@@ -362,7 +362,7 @@ signif_vj_oo <- V_J %>%
                             cells_long,
                             stage))%>%unique(), by=c("sample_short")) %>%
   group_by(cells, vj)%>%
-  t_test(value ~ geno,var.equal=FALSE)%>%filter(p.adj<0.05, group1%in%c("DQ2","DQ8"),  group2%in%c("DQ2","DQ8"))
+  t_test(value ~ geno,var.equal=FALSE,p.adjust.method="fdr",detailed=T)%>%filter(p.adj<0.05, group1%in%c("DQ2","DQ8"),  group2%in%c("DQ2","DQ8"))
 
 
 

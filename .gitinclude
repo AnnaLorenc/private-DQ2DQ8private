@@ -1,8 +1,8 @@
 assets/
-bin/
+bin/*/*
 config/
 data/
-for_plots_R/*
+for_plots_R/*.R
 lib/
 modules/
 planning/
