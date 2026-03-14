@@ -288,9 +288,9 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
         unique_samples.loc[unique_samples["genotype"].isin(["hoDQ8"]), "sample"]
         .nunique()
     )
-    print("homhom grouping (hoDQ2 vs hoDQ8):")
-    print("  group_a (hoDQ2) n_samples:", int(n_homhom_a))
-    print("  group_b (hoDQ8) n_samples:", int(n_homhom_b))
+    # print("homhom grouping (hoDQ2 vs hoDQ8):")
+    # print("  group_a (hoDQ2) n_samples:", int(n_homhom_a))
+    # print("  group_b (hoDQ8) n_samples:", int(n_homhom_b))
 
     # Grouping2: hethom (heDQ2DQ8 vs hom = hoDQ2 or hoDQ8)
     n_hethom_a = (
@@ -314,9 +314,9 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
         unique_samples.loc[unique_samples["genotype"].isin(["hoDQ8"]), "sample"]
         .nunique()
     )
-    print("heDQ8 grouping (heDQ2DQ8 vs hoDQ8):")
-    print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ8_a))
-    print("  group_b (hoDQ8) n_samples:", int(n_heDQ8_b))
+    # print("heDQ8 grouping (heDQ2DQ8 vs hoDQ8):")
+    # print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ8_a))
+    # print("  group_b (hoDQ8) n_samples:", int(n_heDQ8_b))
 
     # Grouping4: heDQ2 (heDQ2DQ8 vs hoDQ2)
     n_heDQ2_a = (
@@ -327,9 +327,9 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
         unique_samples.loc[unique_samples["genotype"].isin(["hoDQ2"]), "sample"]
         .nunique()
     )
-    print("heDQ2 grouping (heDQ2DQ8 vs hoDQ2):")
-    print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ2_a))
-    print("  group_b (hoDQ2) n_samples:", int(n_heDQ2_b))
+    # print("heDQ2 grouping (heDQ2DQ8 vs hoDQ2):")
+    # print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ2_a))
+    # print("  group_b (hoDQ2) n_samples:", int(n_heDQ2_b))
 
     # Ensure requested index columns are present
     missing_idx = [c for c in index_columns if c not in df.columns]
@@ -357,6 +357,9 @@ def run_tests(input_path: Path, output_dir: Path, index_columns: List[str]) -> N
         genotypes = sub["genotype"].astype(str)
         samples = sub["sample"].astype(str)
 
+        # print("heDQ2 grouping (heDQ2DQ8 vs hoDQ2):")
+        # print("  group_a (heDQ2DQ8) n_samples:", int(n_heDQ2_a))
+        # print("  group_b (hoDQ2) n_samples:", int(n_heDQ2_b))
         # grouping1: hoDQ2 vs hoDQ8
         stats_homhom = compute_two_group_stats(
             values=values,

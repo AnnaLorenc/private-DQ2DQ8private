@@ -11,9 +11,11 @@ IMGT_position × length × cells).
 The input is the output of imgtCDR3/imgt_wide_to_properties.py--> imgtCDR3/properties_add_annotation.py: one row per
 (agg_cols × patient × sample × genotype), with property columns specified by --prop_columns.
 
-Two comparisons are performed:
+Four comparisons are performed:
     - oo  :  hoDQ2  vs  hoDQ8
     - eo  :  heDQ2DQ8  vs  (hoDQ2 + hoDQ8)
+    - do  :  heDQ2DQ8  vs  hoDQ8
+    - po  :  heDQ2DQ8  vs  hoDQ2
 
 Both comparisons are run within each cell type (implicit if "cells" is among
 the aggregation columns).
@@ -22,14 +24,14 @@ Output files
 ------------
 1. <output_dir>/hotelling.tsv
      One row per aggregation-column combination.
-     Columns (side-by-side _oo and _eo):
+     Columns (side-by-side _oo, _eo, _do, and _po):
          T2, F, df1, df2, p_value, q_value (BH-FDR), eta_sq, n_a, n_b
 
 2. <output_dir>/per_property.tsv
      One row per (aggregation-column combination × property).
-     Columns (side-by-side _oo and _eo):
+     Columns (side-by-side _oo, _eo, _do, and _po):
          mean_a, mean_b, mean_diff, cohens_d, t_stat, df, p_value, q_value (BH-FDR)
-     Plus: p_hotelling_oo, q_hotelling_oo, p_hotelling_eo, q_hotelling_eo
+     Plus: p_hotelling_oo, q_hotelling_oo, p_hotelling_eo, q_hotelling_eo, p_hotelling_do, q_hotelling_do, p_hotelling_po, q_hotelling_po
 
 Usage
 -----
@@ -306,6 +308,8 @@ def run_tests(
     comparisons = {
         "oo": (["hoDQ2"],     ["hoDQ8"],           "hoDQ2", "hoDQ8"),
         "eo": (["heDQ2DQ8"],  ["hoDQ2", "hoDQ8"],  "heDQ2DQ8", "hom"),
+        "do": (["heDQ2DQ8"],  ["hoDQ8"],           "heDQ2DQ8", "hoDQ8"),
+        "po": (["heDQ2DQ8"],  ["hoDQ2"],           "heDQ2DQ8", "hoDQ2"),
     }
 
     # ---- Hotelling --------------------------------------------------------
@@ -313,14 +317,17 @@ def run_tests(
     for tag, (ga, gb, _, _) in comparisons.items():
         hotelling_frames[tag] = run_hotelling(df, agg_cols, prop_cols, ga, gb)
 
-    # Merge oo and eo side by side on agg_cols
-    h_oo = hotelling_frames["oo"].rename(
-        columns={c: f"{c}_oo" for c in hotelling_frames["oo"].columns if c not in agg_cols}
-    )
-    h_eo = hotelling_frames["eo"].rename(
-        columns={c: f"{c}_eo" for c in hotelling_frames["eo"].columns if c not in agg_cols}
-    )
-    df_hotelling = pd.merge(h_oo, h_eo, on=agg_cols, how="outer").sort_values(agg_cols)
+    # Merge all four comparisons side by side on agg_cols
+    h_frames = {}
+    for tag in comparisons.keys():
+        h_frames[tag] = hotelling_frames[tag].rename(
+            columns={c: f"{c}_{tag}" for c in hotelling_frames[tag].columns if c not in agg_cols}
+        )
+    
+    df_hotelling = h_frames["oo"]
+    for tag in ["eo", "do", "po"]:
+        df_hotelling = pd.merge(df_hotelling, h_frames[tag], on=agg_cols, how="outer")
+    df_hotelling = df_hotelling.sort_values(agg_cols)
 
     out1 = output_dir / f"{base_name}_{property}_hotelling.tsv"
     df_hotelling.to_csv(out1, sep="\t", index=False)
@@ -331,26 +338,24 @@ def run_tests(
     for tag, (ga, gb, _, _) in comparisons.items():
         pf_frames[tag] = run_per_factor(df, agg_cols, prop_cols, ga, gb)
 
-    pf_oo = pf_frames["oo"].rename(
-        columns={c: f"{c}_oo" for c in pf_frames["oo"].columns
-                 if c not in agg_cols and c != "prop"}
-    )
-    pf_eo = pf_frames["eo"].rename(
-        columns={c: f"{c}_eo" for c in pf_frames["eo"].columns
-                 if c not in agg_cols and c != "prop"}
-    )
-    df_pf = pd.merge(pf_oo, pf_eo, on=agg_cols + ["prop"], how="outer")
+    pf_frames_renamed = {}
+    for tag in comparisons.keys():
+        pf_frames_renamed[tag] = pf_frames[tag].rename(
+            columns={c: f"{c}_{tag}" for c in pf_frames[tag].columns
+                     if c not in agg_cols and c != "prop"}
+        )
+    
+    df_pf = pf_frames_renamed["oo"]
+    for tag in ["eo", "do", "po"]:
+        df_pf = pd.merge(df_pf, pf_frames_renamed[tag], on=agg_cols + ["prop"], how="outer")
 
     # Attach Hotelling p and q values (per group key, broadcast across KFs)
-    hot_cols_oo = hotelling_frames["oo"].rename(
-        columns={"p_value": "p_hotelling_oo", "q_value": "q_hotelling_oo"}
-    )[agg_cols + ["p_hotelling_oo", "q_hotelling_oo"]]
-    hot_cols_eo = hotelling_frames["eo"].rename(
-        columns={"p_value": "p_hotelling_eo", "q_value": "q_hotelling_eo"}
-    )[agg_cols + ["p_hotelling_eo", "q_hotelling_eo"]]
-
-    df_pf = df_pf.merge(hot_cols_oo, on=agg_cols, how="left")
-    df_pf = df_pf.merge(hot_cols_eo, on=agg_cols, how="left")
+    hot_cols = {}
+    for tag in comparisons.keys():
+        hot_cols[tag] = hotelling_frames[tag].rename(
+            columns={"p_value": f"p_hotelling_{tag}", "q_value": f"q_hotelling_{tag}"}
+        )[agg_cols + [f"p_hotelling_{tag}", f"q_hotelling_{tag}"]]
+        df_pf = df_pf.merge(hot_cols[tag], on=agg_cols, how="left")
     df_pf = df_pf.sort_values(agg_cols + ["prop"])
 
     out2 = output_dir / f"{base_name}_{property}_per_factor.tsv"

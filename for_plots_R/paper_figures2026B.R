@@ -3,55 +3,57 @@ library(tidyverse)
 library(kableExtra)
 library(scales)
 library(ggpubr)
+library(gt)
+library(dplyr)
 
 #knitr::opts_chunk$set( message=FALSE, fig.width = 8, fig.height = 12, warning = FALSE)
 
 
-source("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_cdr3.R") 
-
-annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_info.csv"
-
-imgt_tests_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/imgt_aa_test"
-imgt_tests <- c("WL",  "full",  "WL_vfam",     "full_vfam")
-imgt_prefixes <-c("comb_aa_imgt_", "_subs_rows_freq_5_1_res")
-file <- "imgt_lm_combined.tsv"
-
-properties_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/aa_properties"
-properties <- c("KF", "VHS")
-properties_tests <- c("WL",  "full",  "WL_vfam",     "full_vfam")
-properties_res <- c("hotelling", "per_factor")
-properties_prefixes <-c("comb_aa_imgt_", "_subs_rows_","_anno_")
-#"comb_aa_imgt_" (WL) "_subs_rows_", (VHS) "_anno_" (VHS) (hotelling).tsv
-
-
-plot_dir <- "/Users/ania/Documents/DQ2DQ8/pipeline/260304"
-
-colors=c(DQ2="red",
-         DQ2DQ8="purple",
-         DQ8="blue")
-
-colors_two <- c("darkgrey","darkgreen")
-
-anno <- read_csv(annotation_loc)%>%
-  mutate(source=substr(newname,1,1))%>%
-  rename(patient=shortname)%>%
-  unique
-
-#adding anonymous IDs
-anonym_patient_ids <- 
-  anno %>%
-  select(patient, source)%>%
-  unique()%>%
-  group_by(source)%>%
-  mutate(anonym_patient_id=1:n()%>%str_pad(.,side = "left",width=2,"0")%>%paste0(substr(source,1,1),.))
-
-
-anno <- anno %>%
-  inner_join(., anonym_patient_ids%>%ungroup%>%select(patient, anonym_patient_id), by=c("patient"))%>%
-  mutate(anonym_sample_id=paste0(anonym_patient_id, cells))%>%
-  mutate(stage=ifelse(source=="F","stage 3","stage 2"),
-         cells_long=ifelse(cells=="N","naive","memory"),
-         geno=gsub(pat=".*o", rep="", genotype_short))
+source("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_cdr3_functions.R") 
+  
+  annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_info.csv"
+  
+  imgt_tests_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/imgt_aa_test"
+  imgt_tests <- c("WL",  "full",  "WL_vfam",     "full_vfam")
+  imgt_prefixes <-c("comb_aa_imgt_", "_subs_rows_freq_5_1_res")
+  file <- "imgt_lm_combined.tsv"
+  
+  properties_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/aa_properties"
+  properties <- c("KF", "VHS")
+  properties_tests <- c("WL",  "full",  "WL_vfam",     "full_vfam")
+  properties_res <- c("hotelling", "per_factor")
+  properties_prefixes <-c("comb_aa_imgt_", "_subs_rows_","_anno_")
+  #"comb_aa_imgt_" (WL) "_subs_rows_", (VHS) "_anno_" (VHS) (hotelling).tsv
+  
+  
+  plot_dir <- "/Users/ania/Documents/DQ2DQ8/pipeline/260304"
+  
+  colors=c(DQ2="red",
+           DQ2DQ8="purple",
+           DQ8="blue")
+  
+  colors_two <- c("darkgrey","darkgreen")
+  
+  anno <- read_csv(annotation_loc)%>%
+    mutate(source=substr(newname,1,1))%>%
+    rename(patient=shortname)%>%
+    unique
+  
+  #adding anonymous IDs
+  anonym_patient_ids <- 
+    anno %>%
+    select(patient, source)%>%
+    unique()%>%
+    group_by(source)%>%
+    mutate(anonym_patient_id=1:n()%>%str_pad(.,side = "left",width=2,"0")%>%paste0(substr(source,1,1),.))
+  
+  
+  anno <- anno %>%
+    inner_join(., anonym_patient_ids%>%ungroup%>%select(patient, anonym_patient_id), by=c("patient"))%>%
+    mutate(anonym_sample_id=paste0(anonym_patient_id, cells))%>%
+    mutate(stage=ifelse(source=="F","stage 3","stage 2"),
+           cells_long=ifelse(cells=="N","naive","memory"),
+           geno=gsub(pat=".*o", rep="", genotype_short))
 
 
 ##### ##### ##### ##### ##### ##### ##### ##### ##### 
@@ -60,6 +62,10 @@ anno <- anno %>%
 
 results_imgt  <- read_tsv(file.path(imgt_tests_loc, file.path(paste0(imgt_prefixes[1], imgt_tests[2],imgt_prefixes[2]),file))) 
 
+  
+#####
+#####OLD plots
+#####
 #  significant between homozygotes:
 ##summary
 results_imgt%>%
@@ -80,27 +86,17 @@ plot_enrichment_depletion3 (res_imgt%>%filter(p_value_oo <0.01, cells=="N",abs(c
                             estim_expr_for_plotting="cohens_d_oo<0", 
                             aminoacid_mapping=color_scale_properties_property(AAdata$kideraFactors,"KF4") , inset_colour="blue")
 
-
-res_imgt%>%filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8)# 53 results (6 exp)
-
-
-res_imgt%>% 
-  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
-filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8, cohens_d_oo>0)
-###the same for E cells
+#####
 
 
 ############ WL
 
 results_imgt_WL  <- read_tsv(file.path(imgt_tests_loc, file.path(paste0(imgt_prefixes[1], imgt_tests[1],imgt_prefixes[2]),file))) 
 
-results_imgt_WL%>% #one celltype=158 tests, 19 significant (2 exp); 35/316
-  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
-  mutate(imgt =change_imgt_format(IMGT_position))%>%
-  rename("aa"=AA)%>%filter(p_value_oo <0.01,abs(cohens_d_oo)>0.8)
-####### PLOT
-
+######################## 
 ############ VFAM
+########################
+
 
 #VFAM which were significantly different between DQ2, DQ8
 results_imgt_VFAM  <- read_tsv(file.path(imgt_tests_loc, file.path(paste0(imgt_prefixes[1], imgt_tests[4],imgt_prefixes[2]),file))) 
@@ -139,7 +135,7 @@ left_join(naive,
             TRBV_sign=sum(p_value_oo.y<0.05, na.rm=T),
             TRBV_sign_and_vjdiff=sum((vFamilyName%in%(signif_vj_oo%>%filter(cells=="N")%>%.$vj))&p_value_oo.y<0.05))%>%arrange(length, IMGT_position, aa )
 
-#######what about simple correlation Vgene versus AA (across lengths/imgt positions)?
+
 
 #####################
 ##### PROPERITES
@@ -152,12 +148,13 @@ properties_res <- c("hotelling", "per_factor")
 properties_prefixes <-c("comb_aa_imgt_", "_subs_rows_","_anno_")
 #"comb_aa_imgt_" (WL) "_subs_rows_", (VHS) "_anno_" (VHS) (hotelling).tsv
 
-results_KF <- read_tsv(file.path(properties_loc,
-                                 file.path(properties[1],
-                                           file.path(paste0(properties[1],"_properties_results"),
-                                                     paste0(properties_prefixes[1],properties_tests[2],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[1], ".tsv")))))
 
-results_KF %>%filter(!is.na(q_value_oo))%>%filter(!(IMGT_position%in%as.character(c(104:110, 113:118))),q_value_oo<0.05)
+
+# most aggregated version:
+results_KF_WL_by_fact <- read_tsv(file.path(properties_loc,
+                                            file.path(properties[1],
+                                                      file.path(paste0(properties[1],"_properties_results"),
+                                                                paste0(properties_prefixes[1],properties_tests[1],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[2], ".tsv")))))
 
 
 
@@ -165,12 +162,6 @@ results_KF_by_fact <- read_tsv(file.path(properties_loc,
                                  file.path(properties[1],
                                            file.path(paste0(properties[1],"_properties_results"),
                                                      paste0(properties_prefixes[1],properties_tests[2],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[2], ".tsv")))))
-
-
-results_KF_by_fact%>%
-  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
-  mutate(imgt =change_imgt_format(IMGT_position))%>%
-  filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8,q_hotelling_oo<0.05)%>%select(-c(ends_with("eo"), starts_with("t_stat"), starts_with("n_group")))%>%arrange(cells, IMGT_position, prop, length)%>%data.frame()
 
 
 results_KF_WL_VFAM_by_fact <- read_tsv(file.path(properties_loc,
@@ -184,17 +175,7 @@ results_KF_WL_VFAM_by_fact %>%
   mutate(imgt =change_imgt_format(IMGT_position))%>%
   filter(p_value_oo <0.01, cells=="N",abs(cohens_d_oo)>0.8,q_hotelling_oo<0.05)%>%select(-c(ends_with("eo"), starts_with("t_stat"), starts_with("n_group")))%>%arrange(cells, IMGT_position, prop, vFamilyName)%>%data.frame()
 
-results_KF_WL_VFAM_by_fact%>%
-  filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
-  mutate(imgt =change_imgt_format(IMGT_position))%>%
 
-
-
-# most aggregated version:
-results_KF_WL_by_fact <- read_tsv(file.path(properties_loc,
-                                            file.path(properties[1],
-                                                      file.path(paste0(properties[1],"_properties_results"),
-                                                                paste0(properties_prefixes[1],properties_tests[1],properties_prefixes[2], properties[1] ,properties_prefixes[3],properties[1] ,"_",properties_res[2], ".tsv")))))
 #240, 15 significant at qval 1%
 results_KF_WL_by_fact%>%
   filter(!(IMGT_position%in%as.character(c(104:110, 113:118))))%>%
@@ -237,10 +218,13 @@ results_KF_WL_VFAM_by_fact %>%
               filter(group1=="DQ2",group2=="DQ8")%>%
               select(vj,cells, freq_DQ2=estimate1,to_DQ8=estimate)%>%unique(), by=c("cells","vFamilyName"="vj"))
 
-library(gt)
-library(dplyr)
 
-# Table printing for DF
+
+#######################################
+################### Table printing for significant results WITH/WITHOUT VJ
+#######################################
+
+# 
 df %>%
   gt(groupname_col = "cells") %>% # Groups by 'E' and 'N'
   
@@ -326,7 +310,18 @@ df %>%
 source("~/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_aa_logo.R")
 
 
+
+min_freq = 0.01
+p_cutoff = 0.005
+d_cutoff = 0.8
+q_cutoff = 0.1
+
 cell_fullnames <- c(N = "naive", E = "memory")
+
+
+###############
+#### DQ2 vs DQ8
+
 
 cols <-list(imgt = "imgt",
             aa = "aa",
@@ -344,8 +339,8 @@ for(cells_sel in c("N","E")){
   
   p <- plot_aa_composition_logo( results_imgt_WL%>%filter(cells==cells_sel)%>%
                                    mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA),
-                                 min_freq = 0.05, use_seqlogo = TRUE,
-                                 p_cutoff = 0.005, d_cutoff = 1, cols=cols,
+                                 min_freq = min_freq, use_seqlogo = TRUE,
+                                 p_cutoff = p_cutoff, d_cutoff = d_cutoff, cols=cols,
                                  add_to_title = paste(cell_fullnames[cells_sel],"cells"))
   ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL", cells_sel, sep="_"), ".png"))
   
@@ -354,8 +349,8 @@ for(cells_sel in c("N","E")){
   for(len_sel in 13:16){
     p <- plot_aa_composition_logo( results_imgt%>%filter(cells==cells_sel, length==len_sel)%>%
                                      mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA),
-                                   min_freq = 0.05, use_seqlogo = TRUE,
-                                   p_cutoff = 0.001, d_cutoff = 1, cols=cols,
+                                   min_freq = min_freq, use_seqlogo = TRUE,
+                                   p_cutoff = p_cutoff, d_cutoff = d_cutoff, cols=cols,
                                    add_to_title =  paste(cell_fullnames[cells_sel],"cells, length=", len_sel))
     ggsave(plot = p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version, paste0("l",len_sel), cells_sel, sep="_"),".png"))
   }
@@ -381,8 +376,8 @@ for(cells_sel in c("N","E")){
   p <-  plot_property_logo(
     results_KF_WL_by_fact%>%
       mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells, imgt, prop,ends_with("oo"))%>%select(-c(contains('hotelling')))%>%mutate(label_group_a_oo="DQ2",label_group_b_oo="DQ8"),
-    q_cutoff   = 0.1,
-    d_cutoff   = 0.8,
+    q_cutoff   = q_cutoff,
+    d_cutoff   = d_cutoff,
     cols = cols,
     cell_types = cells_sel,
     color_a    = "#e41a1c",   # red = group A
@@ -397,8 +392,8 @@ for(cells_sel in c("N","E")){
       plot_property_logo(
         results_KF_by_fact%>%
           mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells,imgt, prop,ends_with("oo"), length)%>%select(-c(contains('hotelling')))%>%mutate(label_group_a_oo="DQ2",label_group_b_oo="DQ8")%>%filter(length==15),
-        q_cutoff   = 0.1,
-        d_cutoff   = 0.8,
+        q_cutoff   = q_cutoff,
+        d_cutoff   = d_cutoff,
         cols = cols,
         cell_types = cells_sel,
         color_a    = "#e41a1c",   # red = group A
@@ -410,7 +405,7 @@ for(cells_sel in c("N","E")){
 }
 
 
-
+################## 
 ######### Now compare hetero vs hom
 ################## 
 
@@ -420,6 +415,7 @@ cols <-list(imgt = "imgt",
             mean_b = "mean_group_b_eo", 
             cohens_d = "cohens_d_eo",
             p_value = "p_value_eo",
+            p_value_do="p_value_do",cohens_d_do="cohens_d_do",
             label_a = "label_group_a_eo",
             label_b = "label_group_b_eo")
 
@@ -429,9 +425,9 @@ dir.create(file.path(plot_dir, test_version ))
 for(cells_sel in c("N","E")){
   
   p <- plot_aa_composition_logo( results_imgt_WL%>%filter(cells==cells_sel)%>%
-                                   mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA)%>%select(imgt, aa,ends_with("eo")),
-                                 min_freq = 0.05, use_seqlogo = TRUE,
-                                  cols=cols, p_cutoff = 0.01, d_cutoff = 0.8,
+                                   mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA)%>%select(imgt, aa,ends_with("eo"),ends_with("do")),
+                                 min_freq =min_freq, use_seqlogo = TRUE,
+                                  cols=cols, p_cutoff = p_cutoff, d_cutoff = d_cutoff,
                                  add_to_title = paste(cell_fullnames[cells_sel],"cells"))
   ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL", cells_sel, sep="_"), ".png"))
   
@@ -439,9 +435,9 @@ for(cells_sel in c("N","E")){
   ###one length plots
   for(len_sel in 13:16){
     p <- plot_aa_composition_logo( results_imgt%>%filter(cells==cells_sel, length==len_sel)%>%
-                                     mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA)%>%select(imgt, aa,ends_with("eo")),
-                                   min_freq = 0.05, use_seqlogo = TRUE,
-                                   p_cutoff = 0.01, d_cutoff = 0.8, cols=cols,
+                                     mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA)%>%select(imgt, aa,ends_with("eo"),ends_with("do")),
+                                   min_freq =min_freq, use_seqlogo = TRUE,
+                                   p_cutoff = p_cutoff, d_cutoff = d_cutoff, cols=cols,
                                    add_to_title =  paste(cell_fullnames[cells_sel],"cells, length=", len_sel))
     ggsave(plot = p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version, paste0("l",len_sel), cells_sel, sep="_"),".png"))
   }
@@ -462,13 +458,16 @@ cols = list(
   label_a  = "label_group_a_eo",
   label_b  = "label_group_b_eo"
 )
+
+
+
 for(cells_sel in c("N","E")){
   
   p <-  plot_property_logo(
     results_KF_WL_by_fact%>%
       mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells, imgt, prop,ends_with("eo"))%>%select(-c(contains('hotelling')))%>%mutate(label_group_a_eo="DQ2DQ8",label_group_b_eo="homo"),
-    q_cutoff   = 0.1,
-    d_cutoff   = 0.8,
+    q_cutoff   = q_cutoff,
+    d_cutoff   = d_cutoff,
     cols = cols,
     cell_types = cells_sel,
     color_a    = "#e41a1c",   # red = group A
@@ -483,8 +482,8 @@ for(cells_sel in c("N","E")){
       plot_property_logo(
         results_KF_by_fact%>%
           mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells,imgt, prop,ends_with("eo"), length)%>%select(-c(contains('hotelling')))%>%mutate(label_group_a_eo="DQ2DQ8",label_group_b_eo="homo")%>%filter(length==15),
-        q_cutoff   = 0.1,
-        d_cutoff   = 0.8,
+        q_cutoff   = q_cutoff,
+        d_cutoff   = d_cutoff,
         cols = cols,
         cell_types = cells_sel,
         color_a    = "#e41a1c",   # red = group A
@@ -494,3 +493,128 @@ for(cells_sel in c("N","E")){
     ggsave(plot = p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version, paste0("l",len_sel), cells_sel, sep="_"),".png"))
   }
 }
+
+
+cols <- list(
+  imgt     = "imgt",
+  prop       = "prop",
+  cells = "cells",
+  mean_a   = "mean_b_po",
+  mean_b   = "mean_b_do",
+  mean_c = "mean_a_do",
+  cohens_d = "cohens_d_eo",
+  q_value = "q_value_eo",       
+  cohens_d = "cohens_d_eo",
+  cohens_d_do = "cohens_d_do",
+  cohens_d_po = "cohens_d_po",
+  q_value_do = "q_value_do",     
+  q_value_po = "q_value_po",  
+  label_a = "label_group_b_do",
+  label_b = "label_group_b_po",
+  label_c = "label_group_a_eo"        # Third group label
+)
+
+
+for(cells_sel in c("N","E")){
+  
+  p <-  plot_property_logo(
+  results_KF_WL_by_fact%>%
+    mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells, imgt, prop,ends_with("eo"),ends_with("do"),ends_with("po"))%>%select(-c(contains('hotelling')))%>%
+    mutate(label_group_a_eo="DQ2DQ8",label_group_b_eo="homo",label_group_b_po="DQ2",label_group_b_do="DQ8"),
+  positions = c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"),
+  q_cutoff   = q_cutoff,
+  d_cutoff   = d_cutoff,
+  cols = cols,
+  cell_types = cells_sel,
+  color_b    = "#e41a1c",   
+  color_a    = "#377eb8" ,  
+  color_c = "purple",
+  add_to_title = paste(cell_fullnames[cells_sel],"cells"))
+  ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL", cells_sel, sep="_"), ".png"))
+  
+  
+  for(len_sel in 13:16){
+    p <-  
+      plot_property_logo(
+        results_KF_by_fact%>%
+          filter(length==len_sel)%>%
+          mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells, imgt, prop,ends_with("eo"),ends_with("do"),ends_with("po"))%>%select(-c(contains('hotelling')))%>%
+          mutate(label_group_a_eo="DQ2DQ8",label_group_b_eo="homo",label_group_b_po="DQ2",label_group_b_do="DQ8"),
+        positions = c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"),
+        
+        q_cutoff   = q_cutoff,
+        d_cutoff   = d_cutoff,
+        cols = cols,
+        cell_types = cells_sel,
+        color_b    = "#e41a1c",  
+        color_a    = "#377eb8"  ,  
+        color_c = "purple",
+        add_to_title =  paste(cell_fullnames[cells_sel],"cells, length=", len_sel))
+    ggsave(plot = p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version, paste0("l",len_sel), cells_sel, sep="_"),".png"))
+  }
+}
+
+
+
+
+
+
+
+
+
+################## 
+######### Now check whether hetero is just DQ8 or DQ2...
+################## 
+cutoff=0.01
+
+results_imgt_WL%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA)%>%
+  filter(p_value_eo<cutoff, p_value_do<cutoff, p_value_po< cutoff)%>%
+  filter(imgt%in%c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"))%>%
+  select(c(cells,imgt, aa,starts_with("p_value"),starts_with("cohens_d")), mean_dq2=mean_group_a_oo, mean_dq8= mean_group_b_oo, mean_het=mean_group_a_po)%>%
+  kable(digits=c(rep(0,3),rep(4,4),rep(1,4),rep(2,3)))
+
+results_imgt%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%rename("aa"=AA)%>%
+  filter(p_value_eo<cutoff, p_value_do<cutoff, p_value_po< cutoff)%>%
+  filter(imgt%in%c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"))%>%
+  select(c(cells,length, imgt, aa,starts_with("p_value"),starts_with("cohens_d")), mean_dq2=mean_group_a_oo, mean_dq8= mean_group_b_oo, mean_het=mean_group_a_po)%>%
+  arrange(cells, length, imgt)%>%
+  rename_with(~ .x |> gsub("_oo$", " dq2 vs dq8", x = _) |>gsub("_eo", " het vs hom", x = _) |> gsub("_po$", " het vs dq2", x = _) |>gsub("_do", " het vs dq8", x = _)
+  )%>%
+  kable(digits=c(rep(0,4),2,rep(4,3),rep(1,4),rep(3,3)))
+
+
+results_KF_WL_by_fact%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%
+  filter(p_value_eo<cutoff, p_value_do<cutoff, p_value_po< cutoff)%>%
+  filter(imgt%in%c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"))%>%
+  select(c(cells,imgt, prop, starts_with("p_value"),starts_with("cohens_d")), mean_dq2=mean_a_oo, mean_dq8= mean_b_oo, mean_het=mean_a_po)%>%
+
+  kable(digits=c(0,0,0,2,rep(4,3),rep(1,4),rep(2,3)))
+
+
+results_KF_by_fact%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%
+  filter(p_value_eo<cutoff, p_value_do<cutoff, p_value_po< cutoff)%>%
+  filter(imgt%in%c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"))%>%
+  select(c(cells,length, imgt, prop, starts_with("p_value"),starts_with("cohens_d"), starts_with("q_val")), mean_dq2=mean_a_oo, mean_dq8= mean_b_oo, mean_het=mean_a_po)%>%
+  rename_with(~ .x |> gsub("_oo$", " dq2 vs dq8", x = _) |>gsub("_eo", " het vs hom", x = _) |> gsub("_po$", " het vs dq2", x = _) |>gsub("_do", " het vs dq8", x = _)
+  )%>%gt() %>%
+  fmt_number(
+    columns = starts_with("mean"),
+    decimals = 3
+  ) %>%
+  fmt_number(
+    columns = starts_with("cohens_d"),
+    decimals = 1
+  ) %>%
+  fmt_number(
+    columns = starts_with("p_value"),
+    decimals = 4
+  ) %>%
+  fmt_number(
+    columns = starts_with("q_value"),
+    decimals = 2
+  )
+

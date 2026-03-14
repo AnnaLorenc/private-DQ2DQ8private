@@ -173,31 +173,45 @@ plot_aa_composition_logo <- function(
     cols = list(),
     add_to_title = ""
 ) {
-  library(ggplot2)
-  library(dplyr)
-  library(tidyr)
+    library(ggplot2)
+    library(dplyr)
+    library(tidyr)
 
-  if (is.null(aa_colors)) aa_colors <- .default_aa_colors
-  if(add_to_title!=""){add_to_title <- paste0("; ",add_to_title)}
+    if (is.null(aa_colors)) aa_colors <- .default_aa_colors
+    if(add_to_title!=""){add_to_title <- paste0("; ",add_to_title)}
 
-  # ---- resolve column names (require all from cols) ----
-  required_cols <- c("imgt", "aa", "mean_a", "mean_b", "cohens_d", "p_value", "label_a", "label_b")
-  missing <- setdiff(required_cols, names(cols))
-  if (length(missing) > 0) {
-    stop(paste("The following required mapping(s) are missing from 'cols':", 
-               paste(missing, collapse = ", ")))
-  }
+    # ---- resolve column names (require all from cols) ----
+    required_cols <- c("imgt", "aa", "mean_a", "mean_b", "cohens_d", "p_value", "label_a", "label_b")
+    missing <- setdiff(required_cols, names(cols))
+    if (length(missing) > 0) {
+      stop(paste("The following required mapping(s) are missing from 'cols':", 
+                 paste(missing, collapse = ", ")))
+    }
 
-  df <- .rename_cols(df, list(
-    imgt             = cols$imgt,
-    aa               = cols$aa,
-    mean_group_a_oo  = cols$mean_a,
-    mean_group_b_oo  = cols$mean_b,
-    cohens_d_oo      = cols$cohens_d,
-    p_value_oo       = cols$p_value,
-    label_group_a_oo = cols$label_a,
-    label_group_b_oo = cols$label_b
-  ))
+    # Identify additional p_value and cohens_d columns
+    extra_pval_cols <- setdiff(names(cols)[grepl("^p_value", names(cols))], "p_value")
+    extra_d_cols    <- setdiff(names(cols)[grepl("^cohens_d", names(cols))], "cohens_d")
+
+    # Build rename mapping for all columns
+    rename_map <- list(
+      imgt             = cols$imgt,
+      aa               = cols$aa,
+      mean_group_a_oo  = cols$mean_a,
+      mean_group_b_oo  = cols$mean_b,
+      cohens_d_oo      = cols$cohens_d,
+      p_value_oo       = cols$p_value,
+      label_group_a_oo = cols$label_a,
+      label_group_b_oo = cols$label_b
+    )
+    # Add extra columns to rename mapping
+    for (col in extra_pval_cols) {
+      rename_map[[paste0(col, "_oo")]] <- cols[[col]]
+    }
+    for (col in extra_d_cols) {
+      rename_map[[paste0(col, "_oo")]] <- cols[[col]]
+    }
+
+    df <- .rename_cols(df, rename_map)
 
   # ---- filter positions ----
   if (!is.null(positions)) df <- df |> filter(imgt %in% positions)
@@ -213,9 +227,20 @@ plot_aa_composition_logo <- function(
   ordered_pos <- c(ordered_pos, extra_pos)
 
   # ---- significant (imgt, aa) pairs ----
-  sig_pairs <- df |>
-    filter(p_value_oo <= p_cutoff, abs(cohens_d_oo) >= d_cutoff) |>
-    select(imgt, aa) |>
+  # Build list of all p_value/cohens_d column pairs
+  pval_cols <- c("p_value_oo", paste0(extra_pval_cols, "_oo"))
+  d_cols    <- c("cohens_d_oo", paste0(extra_d_cols, "_oo"))
+
+  # Require ALL filtering criteria to be fulfilled simultaneously
+  filter_expr <- rep(TRUE, nrow(df))
+  for (i in seq_along(pval_cols)) {
+    pcol <- pval_cols[i]
+    dcol <- d_cols[i]
+    if (pcol %in% colnames(df) && dcol %in% colnames(df)) {
+      filter_expr <- filter_expr & (df[[pcol]] <= p_cutoff & abs(df[[dcol]]) >= d_cutoff)
+    }
+  }
+  sig_pairs <- df[filter_expr, c("imgt", "aa")] |>
     distinct() |>
     mutate(is_sig = TRUE)
 
@@ -248,7 +273,7 @@ plot_aa_composition_logo <- function(
     
     # Source the selective logo function if not already loaded
     if (!exists("ggseqlogo_selective")) {
-      source("for_plots_R/geom_logo_selective.R")
+      source("geom_logo_selective.R")
     }
     
     library(ggseqlogo)
@@ -494,17 +519,18 @@ plot_aa_composition_logo <- function(
 # ---------------------------------------------------------------------------
 
 plot_property_logo <- function(
-    df,
-    q_cutoff       = 0.05,
-    d_cutoff       = 0.5,
-    positions      = NULL,
-    properties     = NULL,
-    cell_types     = NULL,
-    color_a        = "#e41a1c",
-    color_b        = "#377eb8",
-    facet_by_cells = TRUE,
-    cols = list(),
-    add_to_title = ""
+  df,
+  q_cutoff       = 0.05,
+  d_cutoff       = 0.5,
+  positions      = NULL,
+  properties     = NULL,
+  cell_types     = NULL,
+  color_a        = "#e41a1c",
+  color_b        = "#377eb8",
+  color_c        = "#4daf4a", # default color for third group
+  facet_by_cells = TRUE,
+  cols = list(),
+  add_to_title = ""
 ) {
   library(ggplot2)
   library(dplyr)
@@ -512,6 +538,11 @@ plot_property_logo <- function(
 
   # ---- resolve column names (require all from cols) ----
   required_cols <- c("imgt", "cells", "prop", "mean_a", "mean_b", "cohens_d", "q_value", "label_a", "label_b")
+  # Optional third group: mean_c, label_c
+  has_group_c <- "mean_c" %in% names(cols) && !is.null(cols$mean_c)
+  if (has_group_c) {
+    required_cols <- c(required_cols, "mean_c", "label_c")
+  }
   missing <- setdiff(required_cols, names(cols))
   if (length(missing) > 0) {
     stop(paste("The following required mapping(s) are missing from 'cols':", 
@@ -522,9 +553,13 @@ plot_property_logo <- function(
     stop(paste("The following columns are missing (wrongly named?) from 'cols':", 
                paste(wrong_names, collapse = ", ")))
   }
-  
-  
-  df <- .rename_cols(df, list(
+
+  # Identify additional q_value and cohens_d columns
+  extra_qval_cols <- setdiff(names(cols)[grepl("^q_value", names(cols))], "q_value")
+  extra_d_cols    <- setdiff(names(cols)[grepl("^cohens_d", names(cols))], "cohens_d")
+
+  # Build rename mapping for all columns
+  rename_map <- list(
     imgt             = cols$imgt,
     cells            = cols$cells,
     prop             = cols$prop,
@@ -534,7 +569,19 @@ plot_property_logo <- function(
     q_value_oo       = cols$q_value,
     label_group_a_oo = cols$label_a,
     label_group_b_oo = cols$label_b
-  ))
+  )
+  if (has_group_c) {
+    rename_map$mean_c_oo <- cols$mean_c
+    rename_map$label_group_c_oo <- cols$label_c
+  }
+  for (col in extra_qval_cols) {
+    rename_map[[paste0(col, "_oo")]] <- cols[[col]]
+  }
+  for (col in extra_d_cols) {
+    rename_map[[paste0(col, "_oo")]] <- cols[[col]]
+  }
+
+  df <- .rename_cols(df, rename_map)
 
     if(add_to_title!=""){add_to_title <- paste0("; ",add_to_title)}
   # ---- optional subsetting ----
@@ -564,18 +611,31 @@ plot_property_logo <- function(
     unique(na.omit(df$label_group_b_oo))[1], ifelse("label_b" %in% names(cols), cols$label_b,"Group B"))
 
   # ---- significance flags per (imgt, prop, cells) ----
+  # Require ALL filtering criteria to be fulfilled simultaneously
+  qval_cols <- c("q_value_oo", paste0(extra_qval_cols, "_oo"))
+  d_cols    <- c("cohens_d_oo", paste0(extra_d_cols, "_oo"))
+  filter_expr <- rep(TRUE, nrow(df))
+  for (i in seq_along(qval_cols)) {
+    qcol <- qval_cols[i]
+    dcol <- d_cols[i]
+    if (qcol %in% colnames(df) && dcol %in% colnames(df)) {
+      filter_expr <- filter_expr & (df[[qcol]] <= q_cutoff & abs(df[[dcol]]) >= d_cutoff)
+    }
+  }
   df <- df |>
-    mutate(
-      is_sig = !is.na(q_value_oo) & !is.na(cohens_d_oo) &
-               q_value_oo <= q_cutoff & abs(cohens_d_oo) >= d_cutoff
-    )
+    mutate(is_sig = filter_expr)
 
   # ---- reshape to long for lines ----
   d_long <- bind_rows(
     df |> mutate(group = label_a, mean_val = mean_a_oo),
     df |> mutate(group = label_b, mean_val = mean_b_oo)
-  ) |>
-    mutate(group = factor(group, levels = c(label_a, label_b)))
+  )
+  if (has_group_c) {
+    d_long <- bind_rows(d_long, df |> mutate(group = label_group_c_oo, mean_val = mean_c_oo))
+    d_long <- d_long |> mutate(group = factor(group, levels = c(label_a, label_b, df$label_group_c_oo[1])))
+  } else {
+    d_long <- d_long |> mutate(group = factor(group, levels = c(label_a, label_b)))
+  }
 
   # ---- asterisk positions and labels ----
   # *** q < 0.005,  ** q < 0.01,  * q < 0.05
@@ -584,23 +644,35 @@ plot_property_logo <- function(
     filter(is_sig) |>
     rowwise() |>
     mutate(
-      y_ast      = max(mean_a_oo, mean_b_oo, na.rm = TRUE),
+      y_ast = if (has_group_c) {
+        max(mean_a_oo, mean_b_oo, mean_c_oo, na.rm = TRUE)
+      } else {
+        max(mean_a_oo, mean_b_oo, na.rm = TRUE)
+      },
+      # Use most conservative (maximum) q-value across all tested q-value columns
+      max_q = max(dplyr::c_across(dplyr::any_of(qval_cols)), na.rm = TRUE),
       star_label = dplyr::case_when(
-        q_value_oo < 0.005 ~ "***",
-        q_value_oo < 0.01  ~ "**",
-        TRUE               ~ "*"
+        max_q < 0.005 ~ "***",
+        max_q < 0.01  ~ "**",
+        TRUE          ~ "*"
       )
     ) |>
     ungroup()
 
   # ---- build plot ----
+  color_vals <- c(color_a, color_b)
+  color_names <- c(label_a, label_b)
+  if (has_group_c) {
+    color_vals <- c(color_vals, color_c)
+    color_names <- c(color_names, df$label_group_c_oo[1])
+  }
   p <- ggplot(d_long,
               aes(x = imgt, y = mean_val,
                   colour = group, group = group)) +
     geom_line(linewidth = 0.75, na.rm = TRUE) +
     geom_point(size = 1.6, na.rm = TRUE) +
     scale_colour_manual(
-      values = setNames(c(color_a, color_b), c(label_a, label_b)),
+      values = setNames(color_vals, color_names),
       name   = NULL
     ) +
     geom_hline(yintercept = 0, linewidth = 0.35, colour = "grey60",
@@ -608,7 +680,7 @@ plot_property_logo <- function(
     labs(
       x        = "IMGT position",
       y        = "Mean property value",
-      title    = paste0("Property profiles: ", label_a, " vs ", label_b,  add_to_title),
+      title    = paste0("Property profiles: ", paste(color_names, collapse = " vs "), add_to_title),
       subtitle = paste0(
         "* q<0.05  ** q<0.01  *** q<0.005  |  |D| \u2265 ", d_cutoff,
         "  |  star colour: +D = ", label_a, ", \u2212D = ", label_b

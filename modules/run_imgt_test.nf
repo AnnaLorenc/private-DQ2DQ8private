@@ -18,9 +18,7 @@ process RUN_IMGT_TEST{
     def index_cols_arg = index_columns ? "--index_columns ${index_columns.join(' ')}" : ""
 
     """
-    # Filter to have at least min_non_index samples with at least min_value counts of given position (established based on --filter_file with counts)
-    # Then reshape into long format: Index columns, celltype,
-    #combine with the annotation file 
+
     python ${projectDir}/bin/imgtCDR3/test_imgt.py \
         --input ${imgt_test_input_file} \
         --output_dir ${output_dir} \
