@@ -1,6 +1,6 @@
 process SUBSAMPLE_FROM_MERGED {
     tag "subsampling ${type}"
-    publishDir "${params.outdir}/subsampled/", mode: 'copy'
+    publishDir "${params.outdir}/subsampled/${type}", mode: 'copy'
 
     input:
     tuple val(input_file), val(N), val(M), val(num_index_columns), val(type)

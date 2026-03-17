@@ -64,6 +64,11 @@ include {RAREFIED_SHARING as RAREFIED_SHARING_AA } from './modules/rarefied_shar
 include {RAREFIED_DIVERSITY_METRICS}	from './modules/rarefied_diversity_metrics.nf'
 include {COMBINE_RAREFIED_DIVERSITY_METRICS} from './modules/combine_rarefied_diversity_metrics.nf'
 
+include { MERGE_SAMPLES as MERGE_AMINO_VFAM_NONPROD } from './modules/merge_samples.nf'
+include {SUBSAMPLE_FROM_MERGED as SUBSAMPLE_FROM_MERGED_NONPROD } from './modules/subsample_from_merged.nf'
+include {COMPUTE_FREQS_SUBSAMPLED as COMPUTE_FREQS_SUBSAMPLED_NONPROD} from './modules/compute_freqs_subsampled.nf'
+include {COMBINE_FREQS_SUBSAMPLED as COMBINE_FREQS_SUBSAMPLED_NONPROD } from './modules/combine_freqs_subsampled.nf'
+
 // Print a header for your pipeline 
 log.info """\
 
@@ -149,7 +154,7 @@ workflow {
 			tuple('productive', samples, files)
 		}
 	
-	// Collect nonproductive with deduplication
+	// Collect nonproductive 
 		nonproductive_freqs = COMPUTE_FREQS_NONPROD.out.freqs
 			.unique()  // Remove duplicates
 			.toList()
@@ -169,6 +174,8 @@ workflow {
             tuple(files, params.index_columns, "count (templates/reads)","productive") 
         }
         .set { prod_merge_ch }
+
+
 
 	// prepare one database of productive sequences
     MERGE_AMINO_VFAM(prod_merge_ch)
@@ -411,6 +418,48 @@ workflow {
 	    // Collect just the summary files (drop sample_id)
     all_summaries = RAREFIED_DIVERSITY_METRICS.out.diversity_metrics.map { sample_id, file -> file }.collect()    
     COMBINE_RAREFIED_DIVERSITY_METRICS(all_summaries)
+
+
+	
+		INITIAL_CLEANUP_SPLIT.out.nonproductive
+        .map { sample_name, file_path -> file_path }  // Extract just the files
+        .collect()  // Collect all files into a single list
+        .map { files -> 
+            tuple(files, params.index_columns, "count (templates/reads)","nonproductive") 
+        }
+        .set { nonprod_merge_ch }
+
+		    MERGE_AMINO_VFAM_NONPROD(nonprod_merge_ch)
+
+		//subsample Vfam, Jgene, CDR3
+		MERGE_AMINO_VFAM_NONPROD.out.merged
+			.map { merged_file -> tuple(merged_file, 5000, params.M, 3, "nonproductive") } // Example values for N, M, num_index_columns .set { subsample_input_ch }
+			.set { nonprod_subsample_input_ch }
+		//sample M times N sequences from each sample
+		SUBSAMPLE_FROM_MERGED_NONPROD( nonprod_subsample_input_ch)
+
+		SUBSAMPLE_FROM_MERGED_NONPROD.out.subsampled_files
+		.flatten()
+    	.map { subsampled_file -> 
+        def sample_name = subsampled_file.baseName.replaceAll(/_subsampled\.tsv$/, '')
+        tuple(subsampled_file, sample_name, "nonproductive", "aminoAcid", [ "vFamilyName","jGeneName"])
+    } 
+    .set { nonprod_compute_freqs_subsampled_input_ch }
+	
+	COMPUTE_FREQS_SUBSAMPLED_NONPROD(nonprod_compute_freqs_subsampled_input_ch)
+
+	COMPUTE_FREQS_SUBSAMPLED_NONPROD.out.subsampled
+		.map { big_file, summ_file -> summ_file}
+		.collect()
+		.map{ files ->
+		tuple(files,  "nonproductive_subs_freqs",'nonproductive') }
+		.set { nonprod_combine_freqs_subsampled_input_ch  }	
+
+	COMBINE_FREQS_SUBSAMPLED_NONPROD(nonprod_combine_freqs_subsampled_input_ch)
+
+
+
+
 
 	}
 

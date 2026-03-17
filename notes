@@ -487,3 +487,123 @@ the function should take as inputs:
 - a color scheme for the amino acids (mapping between aminoscids and colors)
 The output should be a ggplot object showing the amino acid preferences across the specified positions, similar to letter logo. Preferences leading to positive coens d should be above the x-axis, and those leading to negative cohen's d should be below the x-axis. The height of the letters should be proportional to the absolute value of Cohen's d, and the color should correspond to the amino acid. Only amino acids that pass the specified cutoffs for p-value and Cohen's d should be included in the plot.
 and negative Cohen's D below the axis. The height of the letters should be proportional to the absolute value of Cohen's D, and the color should correspond to the amino acid. Only amino acids that pass the specified cutoffs for p-value and Cohen's D should be included in the plot.
+
+
+
+
+Add a columns with cells source:
+awk -F',' 'NR==1 {print $0 ",source"} NR>1 {print $0 "," substr($7,1,1)}' data/collated_info.csv > data/collated_info_new.csv 
+
+CHECK THIS SCRIPT
+
+### by stage only
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_E_TF.tsv \
+  --cells E \
+  --n_perm 10000 \
+  --group_col source \
+  --sample_col shortname
+F vs T (E): KS=0.0088, p=0.0559 (n_a=35, n_b=26)
+
+
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_N_TF.tsv \
+  --cells N \
+  --n_perm 10000 \
+  --group_col source \
+  --sample_col shortname
+ F vs T (N): KS=0.0147, p=0.0095 (n_a=35, n_b=26) 
+
+###### now by genotype only
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_E_geno.tsv \
+  --cells E \
+  --n_perm 10000 \
+  --group_col genotype_short \
+  --sample_col shortname
+heteroDQ2DQ8 vs homoDQ2 (E): KS=0.0065, p=0.3054 (n_a=20, n_b=20)
+heteroDQ2DQ8 vs homoDQ8 (E): KS=0.0080, p=0.1615 (n_a=20, n_b=21)
+homoDQ2 vs homoDQ8 (E): KS=0.0050, p=0.3210 (n_a=20, n_b=21)
+
+  python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_N_geno.tsv \
+  --cells N \
+  --n_perm 10000 \
+  --group_col genotype_short \
+  --sample_col shortname
+heteroDQ2DQ8 vs homoDQ2 (N): KS=0.0156, p=0.0318 (n_a=20, n_b=20)
+heteroDQ2DQ8 vs homoDQ8 (N): KS=0.0138, p=0.0569 (n_a=20, n_b=21)
+homoDQ2 vs homoDQ8 (N): KS=0.0030, p=0.7329 (n_a=20, n_b=21)
+
+######
+
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_N_TF_bygeno.tsv \
+  --cells N \
+  --groups T F \
+  --split_col genotype_short \
+  --n_perm 10000 \
+  --group_col source \
+  --sample_col shortname
+
+T vs F (N, genotype_short=heteroDQ2DQ8): KS=0.0223, p=0.0449 (n_a=10, n_b=10)
+T vs F (N, genotype_short=homoDQ2): KS=0.0260, p=0.0005 (n_a=10, n_b=10)
+T vs F (N, genotype_short=homoDQ8): KS=0.0025, p=0.9163 (n_a=6, n_b=15)
+
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_E_TF_bygeno.tsv \
+  --cells E \
+  --groups T F \
+  --split_col genotype_short \
+  --n_perm 10000 \
+  --group_col source \
+  --sample_col shortname
+
+T vs F (E, genotype_short=heteroDQ2DQ8): KS=0.0165, p=0.0901 (n_a=10, n_b=10)
+T vs F (E, genotype_short=homoDQ2): KS=0.0132, p=0.0660 (n_a=10, n_b=10)
+T vs F (E, genotype_short=homoDQ8): KS=0.0024, p=0.8926 (n_a=6, n_b=15)
+
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_N_geno_byTF.tsv \
+  --cells N \
+  --split_col source \
+  --n_perm 10000 \
+  --group_col genotype_short \
+  --sample_col shortname
+
+heteroDQ2DQ8 vs homoDQ2 (N, source=F): KS=0.0137, p=0.1285 (n_a=10, n_b=10)
+heteroDQ2DQ8 vs homoDQ8 (N, source=F): KS=0.0250, p=0.0148 (n_a=10, n_b=15)
+homoDQ2 vs homoDQ8 (N, source=F): KS=0.0133, p=0.0959 (n_a=10, n_b=15)
+heteroDQ2DQ8 vs homoDQ2 (N, source=T): KS=0.0174, p=0.0622 (n_a=10, n_b=10)
+heteroDQ2DQ8 vs homoDQ8 (N, source=T): KS=0.0028, p=0.8764 (n_a=10, n_b=6)
+homoDQ2 vs homoDQ8 (N, source=T): KS=0.0146, p=0.1383 (n_a=10, n_b=6)
+
+python bin/ks_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --output results_man/ks_length_results_E_geno_byTF.tsv \
+  --cells E \
+  --split_col source \
+  --n_perm 10000 \
+  --group_col genotype_short \
+  --sample_col shortname
+heteroDQ2DQ8 vs homoDQ2 (E, source=F): KS=0.0087, p=0.3241 (n_a=10, n_b=10)
+heteroDQ2DQ8 vs homoDQ8 (E, source=F): KS=0.0161, p=0.0527 (n_a=10, n_b=15)
+homoDQ2 vs homoDQ8 (E, source=F): KS=0.0089, p=0.1487 (n_a=10, n_b=15)
+heteroDQ2DQ8 vs homoDQ2 (E, source=T): KS=0.0048, p=0.6375 (n_a=10, n_b=10)
+heteroDQ2DQ8 vs homoDQ8 (E, source=T): KS=0.0036, p=0.8059 (n_a=10, n_b=6)
+homoDQ2 vs homoDQ8 (E, source=T): KS=0.0079, p=0.3482 (n_a=10, n_b=6)

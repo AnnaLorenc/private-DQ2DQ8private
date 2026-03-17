@@ -289,7 +289,7 @@ plot_sharing <- function(sharing_summary,
     group_names_here <- intersect(group_names, colnames(panel_df))
     summary_df <- panel_df %>% select(all_of(c(group_names_here, "clonotype"))) %>%
       ungroup() %>% summarise(across(all_of(group_names_here) , ~ sum(.x > 0))) %>%
-      pivot_longer(cols = all_of(group_names) ,
+      pivot_longer(cols = all_of(group_names_here) ,
                    names_to = 'geno') %>%
       mutate(y = max_sharing)
     
@@ -343,49 +343,12 @@ plot_sharing <- function(sharing_summary,
 
 
 
-sharing_summary <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/aminoAcid_vFamilyName_jGeneName/sharing_summary_N_A3/merged_summary.tsv")
-names(sharing_summary) <- make.names(names(sharing_summary))
-sharing_summary <- mutate(sharing_summary,group=ifelse(group=='hete','DQ2DQ8',group))
-plot_sharing (sharing_summary, cfs=7, min_frac=20, clonotype_cols=c(  "aminoAcid" ,  "vFamilyName" ,"jGeneName"), for_title=" Naive cells")
-
-sharing_summary <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/aminoAcid_vFamilyName/sharing_summary_N_A3/merged_summary.tsv")
-names(sharing_summary) <- make.names(names(sharing_summary))
-sharing_summary <- mutate(sharing_summary,group=ifelse(group=='hete','DQ2DQ8',group))
-
-plot_sharing (sharing_summary, cfs=7, min_frac=20, clonotype_cols=c(  "aminoAcid" ,  "vFamilyName"), for_title=" Naive cells")
-
-
-##something wrong when just aminoacid column
-sharing_summary <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/aminoAcid/sharing_summary_N_A3/merged_summary.tsv")
-names(sharing_summary) <- make.names(names(sharing_summary))
-sharing_summary <- mutate(sharing_summary,group=ifelse(group=='hete','DQ2DQ8',group))
-
-plot_sharing (sharing_summary, cfs=7, min_frac=20, clonotype_cols=c(  "aminoAcid" ), for_title=" Naive cells")
-
-
-
-sharing_summary <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/aminoAcid_vFamilyName_jGeneName/sharing_summary_E_A3/merged_summary.tsv")
-names(sharing_summary) <- make.names(names(sharing_summary))
-sharing_summary <- mutate(sharing_summary,group=ifelse(group=='hete','DQ2DQ8',group))
-plot_sharing (sharing_summary, cfs=7, min_frac=20, clonotype_cols=c(  "aminoAcid" ,  "vFamilyName" ,"jGeneName"), for_title=" Memory cells")
-
-sharing_summary <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/aminoAcid_vFamilyName/sharing_summary_E_A3/merged_summary.tsv")
-names(sharing_summary) <- make.names(names(sharing_summary))
-sharing_summary <- mutate(sharing_summary,group=ifelse(group=='hete','DQ2DQ8',group))
-plot_sharing (sharing_summary, cfs=7, min_frac=20, clonotype_cols=c(  "aminoAcid" ,  "vFamilyName"), for_title=" Memory cells")
-
-
-##something wrong when just aminoacid column
-sharing_summary <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/aminoAcid/sharing_summary_E_A3/merged_summary.tsv")
-names(sharing_summary) <- make.names(names(sharing_summary))
-sharing_summary <- mutate(sharing_summary,group=ifelse(group=='hete','DQ2DQ8',group))
-plot_sharing (sharing_summary, cfs=7, min_frac=10, clonotype_cols=c(  "aminoAcid" ), for_title=" Memory cells")
-
+cfs=5
 cell_fullnames <- c(N = "Naive", E = "Memory")
-for (cells_sel in c("N", "E")) {
+for (cells_sel in c("N","E")) {
   print(cells_sel)
   for (sharing_variant in c('aminoAcid_vFamilyName_jGeneName',
-                            'aminoAcid_vFamilyName',
+                            'aminoAcid_vFamilyName', 
                             'aminoAcid')) {
     filename <- file.path(
       '/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/',
@@ -396,21 +359,22 @@ for (cells_sel in c("N", "E")) {
     )
     sharing_summary <- read_tsv(filename)
     print(sharing_variant)
-    for (min_frac in c(80,160)) {
+    for (min_frac in c(2,10,20,40,80,160)) {
       print(min_frac)
       
       names(sharing_summary) <- make.names(names(sharing_summary))
+      
       sharing_summary <- mutate(sharing_summary, group = ifelse(group ==
                                                                   'hete', 'DQ2DQ8', group))
       clonotype_cols <- str_split_1(sharing_variant, pattern = '_')
       p <- plot_sharing (
         sharing_summary,
-        cfs = 7,
+        cfs = cfs,
         min_frac = min_frac,
         clonotype_cols = clonotype_cols,
         for_title = paste0(cell_fullnames[cells_sel], " cells")
       )
-      filename = paste0(paste(min_frac, sharing_variant, cells_sel, sep =
+      filename = paste0(paste(min_frac, sharing_variant, cells_sel,'pub',cfs, sep =
                                 "_"),
                         ".png")
       print(filename)
@@ -425,4 +389,78 @@ for (cells_sel in c("N", "E")) {
     }
   }
 }
+
+extract_vfam_in_public <-function(cells_sel, cfs,
+                          min_frac,
+                          sharing_variant,
+                          group_names=c('DQ2','DQ2DQ8','DQ8') ){
+  filename <- file.path(
+    '/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/rarified_sharing/',
+    file.path(
+      sharing_variant,
+      paste0('sharing_summary_', cells_sel, '_A3/merged_summary.tsv')
+    )
+  )
+  sharing_summary <- read_tsv(filename)
+  names(sharing_summary) <- make.names(names(sharing_summary))
+  
+  sharing_summary <- mutate(sharing_summary, group = ifelse(group ==
+                                                              'hete', 'DQ2DQ8', group))
+  max_sharing <- colnames(sharing_summary) %>%
+    grep(pat = "^X", val = T) %>%
+    gsub(pat = 'X', rep = '') %>%
+    as.integer(.) %>%
+    max()
+  max_shared_within_geno <- sapply(group_names, function(grp)
+    sharing_summary %>%
+      filter(.data[[paste0("X", cfs)]] > 0, group == grp) %>%
+      select(-c(paste0(
+        'X', c(3:max_sharing)[3:max_sharing < cfs]
+      ))) %>%
+      pivot_longer(cols = starts_with('X'), names_to = "shared_by") %>%
+      filter(value >= min_frac) %>%
+      mutate(shared = as.integer(gsub(
+        pat = 'X', rep = '', shared_by
+      ))) %>%
+      unite(
+        "clonotype",
+        all_of(clonotype_cols),
+        sep = "_",
+        remove = FALSE
+      ) %>%
+      group_by(clonotype) %>%
+      slice_max(shared), USE.NAMES = TRUE, simplify = FALSE)
+  max_shared_within_geno%>%
+    lapply(., function(x)x|>group_by(vFamilyName)|>summarise(n=n()))%>%
+    bind_rows(.id='geno')
+ 
+}
+
+public_seqs_vfam_cfs5_mf20_mem <- extract_vfam_in_public(cells_sel='E', cfs=5,
+                                                         min_frac=20,
+                                                         sharing_variant='aminoAcid_vFamilyName',
+                                                         group_names=c('DQ2','DQ2DQ8','DQ8') )
+
+
+public_seqs_vfam_cfs5_mf20_mem%>%pivot_wider(names_from=vFamilyName, values_from = n,values_fill = 0)
+
+#dominating Vfamily groups in public sequences
+extract_vfam_in_public(cells_sel='E', cfs=5,
+                       min_frac=20,
+                       sharing_variant='aminoAcid_vFamilyName',
+                       group_names=c('DQ2','DQ2DQ8','DQ8') )%>%
+  group_by(geno)%>%
+  mutate(frac=n/sum(n))%>%
+  ggplot(aes(col=geno, x=vFamilyName,     y=frac)) +
+  geom_jitter(alpha=0.5,width=0.2)+theme_bw()+coord_flip()+scale_color_manual(values=colors)
+
+
+extract_vfam_in_public(cells_sel='N', cfs=5,
+                       min_frac=20,
+                       sharing_variant='aminoAcid_vFamilyName',
+                       group_names=c('DQ2','DQ2DQ8','DQ8') )%>%
+  group_by(geno)%>%
+  mutate(frac=n/sum(n))%>%
+  ggplot(aes(col=geno, x=vFamilyName,     y=frac)) +
+  geom_jitter(alpha=0.5,width=0.2)+theme_bw()+coord_flip()+scale_color_manual(values=colors)
 
