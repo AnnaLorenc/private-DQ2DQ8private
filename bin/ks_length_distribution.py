@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """ks_length_distribution.py
 
-Compare CDR3 length distributions between genotype groups using
-a Kolmogorov–Smirnov test with a permutation-based null distribution.
+Compare CDR3 length distributions between sample groups using
+a Kolmogorov-Smirnov statistic with a permutation-based null distribution.
+
+High-level workflow:
+1. Read per-sample *_summ.tsv files and extract rows where param == cdr3_length.
+2. Build a sample x length frequency matrix.
+3. Map each sample to a comparison group using sample_map.
+4. Optionally split the analysis into independent subgroups (--split_col).
+5. For each comparison, compute observed KS and permutation p-value.
 
 Input
 -----
@@ -43,7 +50,11 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 def weighted_ecdf(lengths: np.ndarray, weights: np.ndarray):
-    """Return sorted lengths and their cumulative weights (CDF values)."""
+    """Return sorted lengths and cumulative weights.
+
+    Note: kept as a utility for future extensions; current KS implementation
+    computes cumulative sums directly from aligned vectors.
+    """
     order = np.argsort(lengths)
     l_sorted = lengths[order]
     w_sorted = weights[order] / weights.sum()
@@ -52,7 +63,11 @@ def weighted_ecdf(lengths: np.ndarray, weights: np.ndarray):
 
 
 def ks_stat_weighted(dist_a: dict, dist_b: dict) -> float:
-    """KS statistic between two length→frequency dicts (group-mean distributions)."""
+    """KS statistic between two length->frequency dicts.
+
+    dist_a and dist_b are expected to represent group-level mean length
+    distributions (averaged across samples in each group).
+    """
     all_lengths = np.array(sorted(set(dist_a) | set(dist_b)), dtype=float)
     # Build mean frequency vectors over all seen lengths
     freq_a = np.array([dist_a.get(l, 0.0) for l in all_lengths])
@@ -67,7 +82,10 @@ def ks_stat_weighted(dist_a: dict, dist_b: dict) -> float:
 
 
 def group_mean_dist(freq_matrix: pd.DataFrame, samples: list) -> dict:
-    """Mean frequency distribution across samples (length → mean freq)."""
+    """Return mean length distribution across selected samples.
+
+    The output is a dict keyed by CDR3 length with mean frequency values.
+    """
     sub = freq_matrix.loc[samples]
     means = sub.mean(axis=0)
     return means.to_dict()
@@ -107,10 +125,13 @@ def main():
     parser.add_argument("--min_samples", type=int, default=3)
     args = parser.parse_args()
 
-    freq_col_idx = 3 if args.freqs_col == "orig" else 3  # 0-based after split; set below
-    freq_col_idx = 2 if args.freqs_col == "orig" else 3  # columns: 0=param,1=length,2=orig,3=mean
+
+    freq_col_idx = 2 if args.freqs_col == "orig" else 3  # freq column in the input files : 0=param,1=length,2=orig,3=mean
 
     # ---- load sample map ----
+    # sample_map can provide both:
+    # - comparison label (--group_col)
+    # - optional subgroup label (--split_col)
     smap_df = pd.read_csv(args.sample_map)
     smap_df.columns = [c.strip() for c in smap_df.columns]
     if args.sample_col not in smap_df.columns:
@@ -122,11 +143,13 @@ def main():
         raise ValueError(f"sample_map is missing split column: '{args.split_col}' "
                          f"(available: {list(smap_df.columns)})")
     smap = smap_df.set_index(args.sample_col)[args.group_col].to_dict()
-    # split_col mapping: sample → subgroup value
+    # Mapping: sample ID -> subgroup value (only used when split_col is set)
     split_map = smap_df.set_index(args.sample_col)[args.split_col].to_dict() \
         if args.split_col else None
 
     # ---- load all freq files ----
+    # Extract only rows that describe length distributions and select either
+    # original or subsampled mean frequency column.
     freqs_dir = Path(args.freqs_dir)
     all_rows = {}  # sample → {length: freq}
     for tsv in sorted(freqs_dir.glob("*_summ.tsv")):
@@ -153,12 +176,13 @@ def main():
     if not all_rows:
         raise RuntimeError(f"No cdr3_length rows found in {freqs_dir}")
 
-    # ---- build frequency matrix (samples × lengths) ----
+    # ---- build frequency matrix (samples x lengths) ----
     freq_df = pd.DataFrame(all_rows).T.fillna(0.0)
     freq_df.index.name = "sample"
 
-    # ---- map samples → genotype ----
-    # strip cell suffix to look up in smap (smap keys are like F5302)
+    # ---- map samples to group labels ----
+    # Input files often use sample IDs with trailing cell suffix (e.g. F5302N,
+    # F5302E), while sample_map may store base IDs (F5302). Try both.
     def lookup_genotype(sample):
         base = sample[:-1] if sample[-1] in ("N", "E") else sample
         return smap.get(base, smap.get(sample, None))
@@ -169,7 +193,7 @@ def main():
         print(f"Warning: {missing} samples could not be mapped to a genotype and will be skipped.")
     freq_df = freq_df.dropna(subset=["genotype"])
 
-    # attach split column if requested
+    # Attach subgroup values if requested and keep only mappable samples.
     if split_map:
         freq_df["_split"] = [
             split_map.get(s[:-1] if s[-1] in ("N", "E") else s,
@@ -187,6 +211,7 @@ def main():
     length_cols = [c for c in freq_df.columns if c not in ("genotype", "_split")]
 
     # ---- determine group pairs ----
+    # Either use explicit --groups A B, or all pairwise combinations.
     if args.groups:
         pairs = [tuple(args.groups)]
     else:
@@ -198,6 +223,7 @@ def main():
     cell_label = args.cells if args.cells else "all"
 
     for subgroup in subgroups:
+        # Each subgroup is analyzed independently with its own permutation null.
         if subgroup is not None:
             sub_df = freq_df[freq_df["_split"] == subgroup]
         else:
@@ -222,6 +248,8 @@ def main():
                 group_mean_dist(feat, samples_b)
             )
 
+            # Permutation test: shuffle sample labels between groups while
+            # preserving original group sizes, then compare null KS to observed.
             perm_ks = np.empty(args.n_perm)
             for i in range(args.n_perm):
                 perm = rng.permutation(all_samples)
@@ -231,6 +259,7 @@ def main():
                     group_mean_dist(feat, perm_b)
                 )
 
+            # +1 correction avoids exact zero p-values with finite permutations.
             perm_p = float((perm_ks >= obs_ks).sum() + 1) / (args.n_perm + 1)
 
             row = {
@@ -246,7 +275,7 @@ def main():
             print(f"{tag}: KS={obs_ks:.4f}, p={perm_p:.4f} (n_a={n_a}, n_b={n_b})")
 
     out = pd.DataFrame(results)
-    # put split column after cells if present
+    # Keep output columns in a stable order when split_col is used.
     if args.split_col and args.split_col in out.columns:
         cols = ["group_a", "group_b", "cells", args.split_col, "n_a", "n_b", "ks_stat", "perm_p_value", "n_perm"]
         out = out[[c for c in cols if c in out.columns]]
