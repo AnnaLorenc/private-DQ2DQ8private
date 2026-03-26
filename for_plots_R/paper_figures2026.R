@@ -9,7 +9,7 @@ library(rstatix)
 #knitr::opts_chunk$set( message=FALSE, fig.width = 8, fig.height = 12, warning = FALSE)
 
 
-source("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_cdr3.R") 
+source("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_cdr3_functions.R") 
 
 
 annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_info.csv"
@@ -17,14 +17,19 @@ annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_in
 diversities_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/diversity_metrics_rarefied/cleaner_diversities_summary.txt"
 freqs_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/combined_freqs/productive_subs_freqs.tsv.tsv"
 
+diversities_raw_loc <- '/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/combined_metrics/combined_productive_diversity_metrics.csv'
 
 plot_dir <- "/Users/ania/Documents/DQ2DQ8/pipeline/260304"
 
-colors=c(DQ2="red",
-         DQ2DQ8="purple",
-         DQ8="blue")
+# colors=c(DQ2="red",
+#          DQ2DQ8="purple",
+#          DQ8="blue")
 
-colors_two <- c("darkgrey","darkgreen")
+colors =c(DQ2="#FF4D4D",
+ DQ2DQ8="#B455E0",
+  DQ8="#2E86DE")
+
+colors_two <- c("#E69F00", "#009E73")
 
 anno <- read_csv(annotation_loc)%>%
   mutate(source=substr(newname,1,1))%>%
@@ -52,10 +57,10 @@ anno <- anno %>%
 ##### Diversity
 ##### ##### ##### ##### ##### ##### ##### ##### ##### ##### 
 
-diversity_dir <- file.path(plot_dir, "diversity_raref" )
+diversity_dir <- file.path(plot_dir, "diversity" )
 dir.create(diversity_dir, recursive = TRUE)
 
-diversities <- read_tsv(diversities_loc)
+diversities <- read_tsv(diversities_raw_loc)
 
 diversities_anno <- diversities%>%
   select(-c(total_sequences, rarefaction_iterations, sequence_index))%>%
@@ -69,90 +74,7 @@ left_join(., anno%>%select(c(cells,
   unique()
 
 
-plot_paper_plot <- function(i, cells, for_fig1) {
-  
-  ## ---- Required columns check ----
-  required_cols <- c("measure", "genotype_short", "cells", "value", "source")
-  missing_cols <- setdiff(required_cols, colnames(for_fig1))
-  
-  if (length(missing_cols) > 0) {
-    stop(
-      sprintf("Missing required column(s) in for_fig1: %s",
-              paste(missing_cols, collapse = ", "))
-    )
-  }
-  
-  ## ---- Check content of cells column ----
-  allowed_raw_cells <- c("E", "N")
-  observed_cells <- unique(for_fig1$cells)
-  
-  if (!all(observed_cells %in% allowed_raw_cells)) {
-    stop(
-      sprintf(
-        "Unexpected values in column 'cells'. Found: %s. Allowed: %s",
-        paste(observed_cells, collapse = ", "),
-        paste(allowed_raw_cells, collapse = ", ")
-      )
-    )
-  }
-  
-  ## ---- Validate requested cells argument ----
-  allowed_final_cells <- c("MEMORY", "NAIVE")
-  if (!cells %in% allowed_final_cells) {
-    stop(
-      sprintf(
-        "Argument 'cells' must be one of: %s",
-        paste(allowed_final_cells, collapse = ", ")
-      )
-    )
-  }
-  
-  ## ---- Check external dependencies ----
-  if (!exists("colors")) {
-    stop("Object 'colors' not found in environment.")
-  }
-  
-  if (!exists("new_param_names")) {
-    stop("Object 'new_param_names' not found in environment.")
-  }
-  
-  ## ---- Data transformation ----
-  for_fig <- for_fig1 %>%
-    dplyr::filter(measure == i) %>%
-    dplyr::mutate(
-      cells = ifelse(cells == "E", "MEMORY", "NAIVE"),
-      genotype_short = gsub(".*o", "", genotype_short)
-    )
-  
-  ## ---- Plot ----
-  p <- for_fig %>%
-    dplyr::filter(cells == cells) %>%
-    ggplot2::ggplot(ggplot2::aes(
-      x = genotype_short,
-      y = value,
-      color = genotype_short,
-      fill = genotype_short,
-      shape = source,
-      group = genotype_short
-    )) +
-    ggplot2::geom_boxplot(outlier.size = 0, notch = FALSE, alpha = 0.3) +
-    ggplot2::geom_jitter(height = 0, width = 0.2, size = 4, alpha = 0.6) +
-    ggplot2::theme_classic() +
-    ggplot2::scale_color_manual(values = colors) +
-    ggplot2::scale_fill_manual(values = colors) +
-    ggplot2::xlab("") +
-    ggplot2::ylab("") +
-    ggplot2::ggtitle(new_param_names[i]) +
-    ggplot2::theme(axis.text = ggplot2::element_text(size = 12)) +
-    ggplot2::scale_shape_manual(
-      values = c(1, 19),
-      labels = c("stage 2", "stage 3"),
-      name = "stage"
-    ) +
-    ggplot2::guides(color = "none", fill = "none")
-  
-  return(p)
-}
+
 
 
 
@@ -254,10 +176,12 @@ ggsave(file.path(length_dir, "length_db.png"))
 ##### #### Boxplots per stage cumulative
 ##### #### 
 
-
+#### within genotypes, by stages
 length_db_raref %>%
 arrange(geno, stage,sample_short, aa_len) %>%   # ensure proper ordering
+  filter(aa_len>=11,aa_len<19)%>%
   group_by(geno, stage,sample_short) %>%
+  mutate(value=value/sum(value))%>%
   mutate(cum_value = cumsum(value)) %>%
   ungroup() %>%
   ggplot(aes(x = aa_len, y = cum_value, col = stage, group = interaction(stage, aa_len))) +
@@ -265,10 +189,6 @@ arrange(geno, stage,sample_short, aa_len) %>%   # ensure proper ordering
   theme_classic2() +
   scale_shape_manual(values = c(1, 19)) +
   xlab("CDR3 length (aa)") +
-  scale_x_discrete(
-    breaks = paste(sep = ".", "homo DQ8", c(8, 12, 16, 20, 24)),
-    labels = c(8, 12, 16, 20, 24)
-  ) +
   ggtitle("CDR3 length (cumulative mean) across genotypes and stages\n naive cells") +
   facet_wrap(cells ~ geno)+
   # Significance stars: compares stage within each aa_len
@@ -281,9 +201,104 @@ arrange(geno, stage,sample_short, aa_len) %>%   # ensure proper ordering
   scale_fill_manual(values=colors_two)+
   scale_color_manual(values=colors_two)
 
-ggsave(file.path(length_dir, "length_cumsum.png"))
+ggsave(file.path(length_dir, "length_cumsum_bystage_within_geno.png"), width = 7.5, height = 8)
 
+
+
+#### by stages
+length_db_raref %>%
+  arrange(geno, stage,sample_short, aa_len) %>%   # ensure proper ordering
+  filter(aa_len>=11,aa_len<19)%>%
+  group_by(stage,sample_short) %>%
+  mutate(value=value/sum(value))%>%
+  mutate(cum_value = cumsum(value)) %>%
+  ungroup() %>%
+  ggplot(aes(x = aa_len, y = cum_value, col = stage, group = interaction(stage, aa_len))) +
+  geom_boxplot() +
+  theme_classic2() +
+  scale_shape_manual(values = c(1, 19)) +
+  xlab("CDR3 length (aa)") +
+  scale_x_discrete(
+    breaks = paste(sep = ".", "homo DQ8", c(8, 12, 16, 20, 24)),
+    labels = c(8, 12, 16, 20, 24)
+  ) +
+  ggtitle("CDR3 length (cumulative mean) across genotypes and stages\n naive cells") +
+  facet_wrap(~cells )+
+  # Significance stars: compares stage within each aa_len
+  stat_compare_means(
+    aes(group = stage),
+    method = "wilcox.test",   # or t.test if appropriate
+    label = "p.signif",
+    hide.ns = TRUE
+  )+
+  scale_fill_manual(values=colors_two)+
+  scale_color_manual(values=colors_two)
+
+ggsave(file.path(length_dir, "length_cumsum_bystage.png"), width = 7.5, height = 5)
+
+
+
+
+#### by genotypes, 
+length_db_raref %>%
+  arrange(geno, stage,sample_short, aa_len) %>%   # ensure proper ordering
+  filter(aa_len>=11,aa_len<19)%>%
+  group_by(geno, sample_short) %>%
+  mutate(value=value/sum(value))%>%
+  mutate(cum_value = cumsum(value)) %>%
+  ungroup() %>%
+  ggplot(aes(x = aa_len, y = cum_value, col = geno, group = interaction(geno, aa_len))) +
+  geom_boxplot() +
+  theme_classic() +
+  xlab("CDR3 length (aa)") +
+ # scale_x_discrete() +
+  ggtitle("CDR3 length (cumulative mean) across genotypes and stages\n naive cells") +
+  facet_wrap(~cells )+
+  # Significance stars: compares stage within each aa_len
+  stat_compare_means(
+    aes(group = geno),
+    method = "wilcox.test",   # or t.test if appropriate
+    label = "p.signif",
+    hide.ns = TRUE
+  )+
+  scale_fill_manual(values=colors)+
+  scale_color_manual(values=colors)
+
+ggsave(file.path(length_dir, "length_cumsum_bygeno.png"), width = 7.5, height = 5)
+
+
+#### within  stages,by genotypes,
+length_db_raref %>%
+  arrange(geno, stage,sample_short, aa_len) %>%   # ensure proper ordering
+  filter(aa_len>=11,aa_len<19)%>%
+  group_by(geno, stage, sample_short) %>%
+  mutate(value=value/sum(value))%>%
+  mutate(cum_value = cumsum(value)) %>%
+  ungroup() %>%
+  ggplot(aes(x = aa_len, y = cum_value, col = geno, group = interaction(geno, aa_len))) +
+  geom_boxplot() +
+  theme_classic2() +
+  scale_shape_manual(values = c(1, 19)) +
+  xlab("CDR3 length (aa)") +
+  ggtitle("CDR3 length (cumulative mean) across genotypes and stages\n naive cells") +
+  facet_wrap(cells ~ stage)+
+  # Significance stars: compares stage within each aa_len
+  stat_compare_means(
+    aes(group = geno),
+    method = "wilcox.test",   # or t.test if appropriate
+    label = "p.signif",
+    hide.ns = TRUE
+  )+
+  scale_fill_manual(values=colors)+
+  scale_color_manual(values=colors)
+
+ggsave(file.path(length_dir, "length_cumsum_bygeno_withinstage.png"), width = 7.5, height = 8)
+
+
+########
 ####testing
+####
+
 enough_TCRs <-  length_db_raref %>%group_by(cells, aa_len) %>%
   slice_min(value)%>%
   filter(value>=0.01)%>%
@@ -443,7 +458,21 @@ signif_vj_oo <- V_J %>%
 #   12 TCRBV20 N      0.0257     0.111    0.0855  value DQ2    DQ8       20    21      6.28 2.87e- 7  36.1  0.0174    0.0339  T-test two.sided   8.61e- 7 ****        
 #   13 TCRBV30 N     -0.0108     0.0196   0.0304  value DQ2    DQ8       20    21     -3.67 7.21e- 4  38.9 -0.0168   -0.00486 T-test two.sided   2   e- 3 ** 
 
-
+vj_oo <- V_J %>%
+  pivot_longer(cols = c(ends_with("subs")), names_to = "sample_short") %>%
+  #  filter(value > 0) %>%
+  mutate(sample_short=gsub(pat="_subs", rep="",sample_short))%>%
+  left_join(anno%>%select(c(cells,
+                            patient,
+                            genotype_short,
+                            sample_short,source,
+                            anonym_patient_id,
+                            anonym_sample_id,
+                            geno,
+                            cells_long,
+                            stage))%>%unique(), by=c("sample_short")) %>%
+  group_by(cells, vj)%>%
+  t_test(value ~ geno,var.equal=FALSE,p.adjust.method="fdr",detailed=T)
 
 
 ###### selected TRBV , naive versus memory

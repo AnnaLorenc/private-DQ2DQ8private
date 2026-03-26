@@ -312,7 +312,7 @@ source("~/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_aa_logo.R")
 
 
 min_freq = 0.01
-p_cutoff = 0.005
+p_cutoff = 0.05
 d_cutoff = 0.8
 q_cutoff = 0.1
 
@@ -335,6 +335,9 @@ cols <-list(imgt = "imgt",
 test_version <- "imgt"
 dir.create(file.path(plot_dir, test_version ))
 
+
+
+
 for(cells_sel in c("N","E")){
   
   p <- plot_aa_composition_logo( results_imgt_WL%>%filter(cells==cells_sel)%>%
@@ -343,6 +346,25 @@ for(cells_sel in c("N","E")){
                                  p_cutoff = p_cutoff, d_cutoff = d_cutoff, cols=cols,
                                  add_to_title = paste(cell_fullnames[cells_sel],"cells"))
   ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL", cells_sel, sep="_"), ".png"))
+  
+  ##only significant ones
+  
+  #for Bonferroni correction
+  bonf <- results_imgt_WL%>%filter(cells==cells_sel)%>%
+    mutate(imgt =change_imgt_format(IMGT_position))%>%rowwise()%>%
+    filter(imgt%in%c(as.character(106:111),'111.1',"111.2","112.1",as.character(112:117)), max(mean_group_a_oo, mean_group_b_oo)>0.01)%>%
+    rename("aa"=AA)%>%select(imgt, aa,ends_with("oo"))%>%group_by(imgt)%>%summarise(a=n_distinct(aa))%>%summarise(sum(a))%>%unlist()
+  
+  q <- plot_plogo_like(df= results_imgt_WL%>%filter(cells==cells_sel)%>%
+                    mutate(imgt =change_imgt_format(IMGT_position))%>%
+                    filter(imgt%in%c(as.character(106:111),'111.1',"111.2","112.1",as.character(112:116)))%>%
+                    rename("aa"=AA)%>%select(imgt, aa,ends_with("oo"))%>%
+                    mutate(label_group_a_oo=gsub(pat="ho", rep="",label_group_a_oo), label_group_b_oo=gsub(pat="ho", rep="",label_group_b_oo) ),
+                  height_by="cohens_d",
+                  cols=cols, p_cutoff = p_cutoff/bonf, d_cutoff = d_cutoff,
+                  add_to_title = paste(cell_fullnames[cells_sel],"cells, Bonferroni:",bonf))
+  
+  ggsave(plot=q, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL_sign", cells_sel, sep="_"), ".png"))
   
   
   ###one length plots

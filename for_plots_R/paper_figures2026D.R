@@ -248,6 +248,25 @@ signif_vj_oof <- vj_subs_oof  %>%
   group_by(cells, vj)%>%
   t_test(value ~ geno,var.equal=FALSE,p.adjust.method="fdr",detailed=T)
 
+
+eff_size <- vj_subs_oof  %>%
+  rowwise%>%filter(any(across(ends_with("subs") )>0.01))%>%
+  pivot_longer(cols = c(ends_with("subs")), names_to = "sample_short") %>%
+  mutate(sample_short=gsub(pat="_subs", rep="",sample_short))%>%
+  left_join(anno%>%select(c(cells,
+                            patient,
+                            genotype_short,
+                            sample_short,source,
+                            anonym_patient_id,
+                            anonym_sample_id,
+                            geno,
+                            cells_long,
+                            stage))%>%unique(), by=c("sample_short")) %>%
+  group_by(cells, vj)%>%
+  cohens_d(value ~ geno)
+
+signif_vj_oof <- signif_vj_oof %>% add_column(cohens_d=eff_size$effsize)
+
 vj_subs_oof%>%
   filter(vj%in%signif_vj_oof$vj)%>%
   rowwise%>%filter(any(across(ends_with("subs") )>0.01))%>%
@@ -308,4 +327,8 @@ signif_vj_oof %>%
 # 8 TCRBV28    N     -0.00558    0.0324    0.0379 value DQ2    DQ8       20    21     -1.75 0.088  38.3 -0.0120    0.000871 T-test two.sided                  1
 # 9 TCRBV18    N     -0.00172    0.0254    0.0271 value DQ2    DQ8       20    21     -1.72 0.093  39.0 -0.00373   0.000299 T-test two.sided                  1
 # 10 TCRBJ02-06 N      0.00174    0.0375    0.0358 value DQ2    DQ8       20    21      1.72 0.097  29.5 -0.000332  0.00381  T-test two.sided                  1
+pval=0.05
+groups <- signif_vj_oof%>%.$vj%>%unique()%>%length()
 
+signif_vj_oof%>%ggplot(aes(x=p)) +geom_histogram(fill="white",col='darkgrey',breaks=c(seq(from=0, to=1,by=pval)) ) +geom_vline(xintercept=pval, lty=2)+geom_hline(yintercept=round(pval*groups*3), lty=2) +theme_bw()+facet_wrap(~cells, scale="free_y") +
+  ggtitle("VJ usage: genotypes comparison",subtitle = paste("Dashed lines:vertical sign pvalue",pval,", horizontal:expected hits"))

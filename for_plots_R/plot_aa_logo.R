@@ -3,6 +3,22 @@ library(dplyr)
 library(tidyr)
 library(forcats)
 
+format_pval <- function(p, digits = 2) {
+  sapply(p, function(x) {
+    if (is.na(x)) return(NA_character_)
+    if (x == 0) return(paste0("<", formatC(.Machine$double.xmin, format = "e", digits = digits)))
+    
+    # use significant digits
+    out <- signif(x, digits)
+    
+    # format nicely (avoid unnecessary trailing zeros)
+    if (out < 0.001) {
+      formatC(out, format = "e", digits = digits)
+    } else {
+      sub("0+$", "", sub("\\.$", "", format(out, scientific = FALSE)))
+    }
+  })
+}
 # ---------------------------------------------------------------------------
 # plot_aa_preferences_logo() 
 #
@@ -171,7 +187,8 @@ plot_aa_composition_logo <- function(
     min_freq    = 0.005,
     use_seqlogo = FALSE,
     cols = list(),
-    add_to_title = ""
+    add_to_title = "",
+    scale_log = FALSE
 ) {
     library(ggplot2)
     library(dplyr)
@@ -350,7 +367,7 @@ plot_aa_composition_logo <- function(
                                   method = "prob", namespace = aa_order,
                                   col_scheme = aa_colors, grey_col = "#cccccc") +
       imgt_x_scale +
-      labs(y = "Frequency", title = paste0("\u2191 ", group_a)) +
+      labs(y = "Frequency", title = group_a) +
       theme_top
 
     p_below <- ggseqlogo_selective(pfm_b, color_df = color_df_b,
@@ -359,8 +376,13 @@ plot_aa_composition_logo <- function(
                                   col_scheme = aa_colors, grey_col = "#cccccc") +
       imgt_x_scale +
       labs(x = "IMGT position", y = "Frequency",
-           title = paste0("\u2193 ", group_b)) +
+           title =  group_b) +
       theme_bot
+    
+    if(scale_log){
+      p_above <- p_above +scale_y_log10()
+      p_below <- p_below +scale_y_log10()
+    }
 
     return(
       (p_above / p_below) +
@@ -474,6 +496,227 @@ plot_aa_composition_logo <- function(
     theme(
       axis.text.x        = element_text(angle = 45, hjust = 1, size = 10),
       panel.grid.major.y = element_line(colour = "grey90", linewidth = 0.4),
+      plot.title         = element_text(face = "bold"),
+      plot.subtitle      = element_text(colour = "grey40", size = 10)
+    )
+}
+
+# ---------------------------------------------------------------------------
+# plot_plogo_like()
+#
+# p-logo-style visualisation: only amino acids passing significance cutoffs
+# are shown at each IMGT position. Letter height encodes either -log10(p-value)
+# or |Cohen's D|, chosen via the `height_by` argument.
+#
+#   Letters ABOVE x-axis  →  positive Cohen's D (enriched in group A)
+#   Letters BELOW x-axis  →  negative Cohen's D (enriched in group B)
+#   Letter height         ∝  -log10(p_value) OR |Cohen's D| (stacked)
+#   Letter colour         =  aa_colors mapping
+#   Non-significant AAs   =  omitted entirely
+#
+# Default column names in df (override any via the cols argument):
+#   imgt             (cols$imgt)     - IMGT position
+#   aa               (cols$aa)       - amino acid
+#   cohens_d_oo      (cols$cohens_d) - Cohen's D (sign sets direction)
+#   p_value_oo       (cols$p_value)  - p-value (used for height and/or filtering)
+#   label_group_a_oo (cols$label_a)  - group A label
+#   label_group_b_oo (cols$label_b)  - group B label
+#   (cols$mean_a, cols$mean_b accepted but not required)
+#
+# Args:
+#   df           : data frame as described above
+#   p_cutoff     : max p-value to include                  (default 0.05)
+#   d_cutoff     : min |Cohen's D| to include              (default 0.5)
+#   height_by    : "neg_log10_p" or "cohens_d"             (default "neg_log10_p")
+#   positions    : character vector of imgt values; NULL = all
+#   aa_colors    : named character vector; NULL uses built-in scheme
+#   cols         : named list mapping canonical names to actual column names;
+#                  partial lists merged with defaults; only imgt, aa, cohens_d,
+#                  p_value, label_a, label_b are required
+#   min_freq     : suppress AAs whose max frequency across groups is below this
+#                  value; requires cols$mean_a and cols$mean_b             (default 0.005)
+#   add_to_title : extra string appended to the plot title
+#
+# Returns: a ggplot object
+# ---------------------------------------------------------------------------
+
+plot_plogo_like <- function(
+    df,
+    p_cutoff     = 0.05,
+    d_cutoff     = 0.5,
+    height_by    = c("neg_log10_p", "cohens_d"),
+    positions    = NULL,
+    aa_colors    = NULL,
+    min_freq     = 0.005,
+    cols         = list(),
+    add_to_title = ""
+) {
+  library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+
+  height_by <- match.arg(height_by)
+  if (is.null(aa_colors)) aa_colors <- .default_aa_colors
+  if (add_to_title != "") add_to_title <- paste0("; ", add_to_title)
+
+  # ---- resolve column names ----
+  required_cols <- c("imgt", "aa", "cohens_d", "p_value", "label_a", "label_b")
+  missing <- setdiff(required_cols, names(cols))
+  if (length(missing) > 0) {
+    stop(paste("The following required mapping(s) are missing from 'cols':",
+               paste(missing, collapse = ", ")))
+  }
+
+  extra_pval_cols <- setdiff(names(cols)[grepl("^p_value", names(cols))], "p_value")
+  extra_d_cols    <- setdiff(names(cols)[grepl("^cohens_d", names(cols))], "cohens_d")
+
+  rename_map <- list(
+    imgt             = cols$imgt,
+    aa               = cols$aa,
+    cohens_d_oo      = cols$cohens_d,
+    p_value_oo       = cols$p_value,
+    label_group_a_oo = cols$label_a,
+    label_group_b_oo = cols$label_b
+  )
+  # optional frequency columns (accepted but not required)
+  if (!is.null(cols$mean_a)) rename_map$mean_group_a_oo <- cols$mean_a
+  if (!is.null(cols$mean_b)) rename_map$mean_group_b_oo <- cols$mean_b
+
+  for (col in extra_pval_cols) rename_map[[paste0(col, "_oo")]] <- cols[[col]]
+  for (col in extra_d_cols)    rename_map[[paste0(col, "_oo")]] <- cols[[col]]
+
+  df <- .rename_cols(df, rename_map)
+
+  # ---- filter positions ----
+  if (!is.null(positions)) df <- df |> filter(imgt %in% positions)
+  if (nrow(df) == 0) {
+    message("No data for the specified positions.")
+    return(ggplot() + theme_void())
+  }
+
+  # ---- canonical position order ----
+  present_pos <- unique(df$imgt)
+  ordered_pos <- .imgt_order[.imgt_order %in% present_pos]
+  extra_pos   <- setdiff(present_pos, ordered_pos)
+  ordered_pos <- c(ordered_pos, extra_pos)
+
+  # ---- build list of all p_value / cohens_d column pairs ----
+  pval_cols <- c("p_value_oo", paste0(extra_pval_cols, "_oo"))
+  d_cols    <- c("cohens_d_oo", paste0(extra_d_cols, "_oo"))
+
+  # ---- keep only rows passing ALL filter criteria ----
+  keep <- rep(TRUE, nrow(df))
+  for (i in seq_along(pval_cols)) {
+    pc <- pval_cols[i]; dc <- d_cols[i]
+    if (pc %in% colnames(df) && dc %in% colnames(df)) {
+      keep <- keep & (df[[pc]] <= p_cutoff & abs(df[[dc]]) >= d_cutoff)
+    }
+  }
+  df_sig <- df[keep, ]
+
+  if (nrow(df_sig) == 0) {
+    message("No amino acids pass the significance thresholds.")
+    return(ggplot() + theme_void())
+  }
+
+  # ---- apply min_freq filter if frequency columns are available ----
+  has_freq <- all(c("mean_group_a_oo", "mean_group_b_oo") %in% colnames(df_sig))
+  if (!is.null(min_freq) && has_freq) {
+    df_sig <- df_sig |>
+      filter(pmax(mean_group_a_oo, mean_group_b_oo, na.rm = TRUE) >= min_freq)
+    if (nrow(df_sig) == 0) {
+      message("No amino acids pass the min_freq threshold.")
+      return(ggplot() + theme_void())
+    }
+  }
+
+  # ---- one row per (imgt, aa) ----
+  df_agg <- df_sig |>
+    rename(cohens_d = cohens_d_oo, p_value = p_value_oo) |>
+    mutate(
+      imgt      = factor(imgt, levels = ordered_pos),
+      direction = if_else(cohens_d >= 0, "pos", "neg"),
+      height    = if (height_by == "neg_log10_p") -log10(p_value) else abs(cohens_d)
+    )
+
+  group_a <- unique(df$label_group_a_oo)[1]
+  group_b <- unique(df$label_group_b_oo)[1]
+
+  # ---- stack letters within each (imgt, direction): tallest closest to axis ----
+  df_agg <- df_agg |>
+    group_by(imgt, direction) |>
+    arrange(desc(height), .by_group = TRUE) |>
+    mutate(
+      cum_h  = cumsum(height),
+      prev_h = lag(cum_h, default = 0),
+      ymin   = if_else(direction == "pos",  prev_h,  -cum_h),
+      ymax   = if_else(direction == "pos",  cum_h,   -prev_h),
+      ymid   = (ymin + ymax) / 2
+    ) |>
+    ungroup() |>
+    mutate(color = aa_colors[aa],
+           color = if_else(is.na(color), "#999999", color))
+
+  # symmetric y-limits so both panels are equal height
+  y_range <- max(abs(df_agg$ymax), abs(df_agg$ymin), na.rm = TRUE)
+
+  ggplot(df_agg, aes(x = imgt)) +
+    geom_text(
+      aes(x = imgt, y = ymid, label = aa, colour = color, size = height),
+      fontface = "bold",
+      family   = "sans"
+    ) +
+    scale_size_continuous(range = c(3, 22), guide = "none") +
+    scale_colour_identity() +
+    scale_x_discrete() +
+    geom_hline(yintercept = 0, linewidth = 0.7, colour = "grey20") +
+    { if (height_by == "cohens_d") {
+        h_min    <- min(df_agg$height, na.rm = TRUE)
+        h_max    <- max(df_agg$height, na.rm = TRUE)
+        size_ref <- if (h_max > h_min)
+          3 + (1 - h_min) / (h_max - h_min) * (22 - 3)
+        else 12
+        size_ref <- max(3, min(22, size_ref))
+        list(
+          annotate("text", x = Inf, y =  0.5, label = "A",
+                   size = size_ref, colour = "grey75", hjust = 1.2,
+                   fontface = "bold", family = "sans"),
+          annotate("text", x = Inf, y = -0.5, label = "A",
+                   size = size_ref, colour = "grey75", hjust = 1.2,
+                   fontface = "bold", family = "sans"),
+          annotate("text", x = Inf, y =  0,   label = "|d|=1",
+                   size = 2.8, colour = "grey55", hjust = 1.1,
+                   vjust = 0.5)
+        )
+      }
+    } +
+    annotate(
+      "text", x = ordered_pos[1], y =  y_range,
+      label = group_a,
+      hjust = 0, vjust = 1.2, size = 3.5, colour = "grey30", fontface = "italic"
+    ) +
+    annotate(
+      "text", x = ordered_pos[1], y = -y_range,
+      label = group_b,
+      hjust = 0, vjust = -0.2, size = 3.5, colour = "grey30", fontface = "italic"
+    ) +
+    coord_cartesian(ylim = c(-y_range, y_range)) +
+    labs(
+      x        = "IMGT position",
+      y        = NULL,
+      title    = paste0("AA enrichment logo: ", group_a, " (above) vs ", group_b, " (below)", add_to_title),
+      subtitle = paste0(
+        "Letter size = ", if (height_by == "neg_log10_p") "-log10(p)" else "|Cohen's D|",
+        "  |  shown: p \u2264 ", format_pval(p_cutoff), ", |D| \u2265 ", d_cutoff,
+        "  |  direction = sign(Cohen's D)"
+      )
+    ) +
+    theme_classic(base_size = 12) +
+    theme(
+      axis.text.x        = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y        = element_blank(),
+      axis.ticks.y       = element_blank(),
+      panel.grid.major.y = element_blank(),
       plot.title         = element_text(face = "bold"),
       plot.subtitle      = element_text(colour = "grey40", size = 10)
     )
@@ -653,15 +896,22 @@ plot_property_logo <- function(
       max_q = max(dplyr::c_across(dplyr::any_of(qval_cols)), na.rm = TRUE),
       star_label = dplyr::case_when(
         max_q < 0.005 ~ "***",
-        max_q < 0.01  ~ "**",
-        TRUE          ~ "*"
+        max_q < 0.01 ~ "**",
+        max_q < 0.05  ~ "*",
+        TRUE          ~ ""
       )
     ) |>
     ungroup()
-
+  print(sig_marks)
   # ---- build plot ----
   color_vals <- c(color_a, color_b)
   color_names <- c(label_a, label_b)
+  #manual fix for title when I am using pval, not qval for plotting
+  what_is_actually_plotted <- if(grepl(pat="q_value",cols$q_value)){
+    'q'}else{
+      'p'
+  }
+  
   if (has_group_c) {
     color_vals <- c(color_vals, color_c)
     color_names <- c(color_names, df$label_group_c_oo[1])
@@ -682,8 +932,7 @@ plot_property_logo <- function(
       y        = "Mean property value",
       title    = paste0("Property profiles: ", paste(color_names, collapse = " vs "), add_to_title),
       subtitle = paste0(
-        "* q<0.05  ** q<0.01  *** q<0.005  |  |D| \u2265 ", d_cutoff,
-        "  |  star colour: +D = ", label_a, ", \u2212D = ", label_b
+        "* ",what_is_actually_plotted, "<0.05  ** ",what_is_actually_plotted, "<0.01  *** ",what_is_actually_plotted, "<0.005  |  |D| \u2265 ", d_cutoff
       )
     ) +
     theme_classic(base_size = 11) +
@@ -696,13 +945,10 @@ plot_property_logo <- function(
       plot.subtitle      = element_text(colour = "grey40", size = 9)
     )
 
-  # ---- add asterisks (vertical, star-scaled, coloured by sign of Cohen's D) ----
+  # ---- add asterisks (vertical, star-scaled) ----
   if (nrow(sig_marks) > 0) {
-    sig_pos <- sig_marks |> dplyr::filter(cohens_d_oo >= 0)
-    sig_neg <- sig_marks |> dplyr::filter(cohens_d_oo <  0)
-    if (nrow(sig_pos) > 0)
       p <- p + geom_text(
-        data        = sig_pos,
+        data        = sig_marks,
         aes(x = imgt, y = y_ast, label = star_label),
         inherit.aes = FALSE,
         colour      = "black",
@@ -711,17 +957,7 @@ plot_property_logo <- function(
         size        = 5,
         fontface    = "bold"
       )
-    if (nrow(sig_neg) > 0)
-      p <- p + geom_text(
-        data        = sig_neg,
-        aes(x = imgt, y = y_ast, label = star_label),
-        inherit.aes = FALSE,
-        colour      = "black",
-        angle       = 90,
-        hjust       = -0.1,
-        size        = 5,
-        fontface    = "bold"
-      )
+
   }
 
   # ---- faceting ----

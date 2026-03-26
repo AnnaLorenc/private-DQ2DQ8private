@@ -607,3 +607,149 @@ homoDQ2 vs homoDQ8 (E, source=F): KS=0.0089, p=0.1487 (n_a=10, n_b=15)
 heteroDQ2DQ8 vs homoDQ2 (E, source=T): KS=0.0048, p=0.6375 (n_a=10, n_b=10)
 heteroDQ2DQ8 vs homoDQ8 (E, source=T): KS=0.0036, p=0.8059 (n_a=10, n_b=6)
 homoDQ2 vs homoDQ8 (E, source=T): KS=0.0079, p=0.3482 (n_a=10, n_b=6)
+
+
+###Anderson-Darling test:
+
+# 3-group AD (all genotypes together), Naive
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col genotype_short \
+  --sample_col shortname \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_geno.tsv
+
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col genotype_short \
+  --split_col source \
+  --sample_col shortname \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_geno_byTF.tsv
+
+
+# AD for T vs F within each genotype (split)
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col source \
+  --sample_col shortname \
+  --split_col genotype_short \
+  --groups T F \
+  --cells E \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_E_TF_bygeno.tsv
+
+
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col source \
+  --sample_col shortname \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_TF.tsv
+
+######
+# 3-group AD (all genotypes together), Naive
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col genotype_short \
+  --sample_col shortname \
+  --cells E \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_E_geno.tsv
+
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col genotype_short \
+  --split_col source \
+  --sample_col shortname \
+  --cells E \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_E_geno_byTF.tsv
+
+
+# AD for T vs F within each genotype (split)
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col source \
+  --sample_col shortname \
+  --split_col genotype_short \
+  --groups T F \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_TF_bygeno.tsv
+
+
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/productive \
+  --sample_map data/collated_info_new.csv \
+  --group_col source \
+  --sample_col shortname \
+  --cells E \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_E_TF.tsv
+
+
+
+awk 'FNR==1 && NR!=1 {next} 1' results_man/ad_length_results_*by* 
+cells   genotype_short  n_groups        groups  n_perm  ad_stat ad_pvalue_asymptotic    ad_pvalue_permutation   n_samples_total n_per_group
+E       heteroDQ2DQ8    2       T|F     10000   5.9784  0.0015727511662689763   0.0786921307869213      20      T:10;F:10
+E       homoDQ2 2       T|F     10000   2.689942        0.025779807144600642    0.0795920407959204      20      T:10;F:10
+E       homoDQ8 2       T|F     10000   -1.210942       0.25    0.8931106889311069      21      T:6;F:15
+E       F       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   3.586313        0.008412519733162321    0.06779322067793221     35      heteroDQ2DQ8:10;homoDQ2:10;homoDQ8:15
+E       T       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   -0.826168       0.25    0.6739326067393261      26      heteroDQ2DQ8:10;homoDQ2:10;homoDQ8:6
+N       heteroDQ2DQ8    2       T|F     10000   11.649377       0.001   0.036996300369963       20      T:10;F:10
+N       homoDQ2 2       T|F     10000   15.219523       0.001   0.000999900009999       20      T:10;F:10
+N       homoDQ8 2       T|F     10000   -1.169198       0.25    0.9009099090090991      21      T:6;F:15
+N       F       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   9.913408        0.001   0.0183981601839816      35      heteroDQ2DQ8:10;homoDQ2:10;homoDQ8:15
+N       T       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   4.522959        0.0030633684136451766   0.15248475152484753     26      heteroDQ2DQ8:10;homoDQ2:10;homoDQ8:6
+
+
+awk -F'\t' '
+FNR==1 {
+  keep = (NF==9)
+  if (!keep) nextfile
+  if (seen_header) next
+  seen_header=1
+}
+keep
+' results_man/ad_length_results_*
+cells   n_groups        groups  n_perm  ad_stat ad_pvalue_asymptotic    ad_pvalue_permutation   n_samples_total n_per_group
+E       2       F|T     10000   0.45221 0.21654030641024072     0.0628937106289371      61      F:35;T:26
+E       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   -0.228697       0.25    0.21087891210878912     61      heteroDQ2DQ8:20;homoDQ2:20;homoDQ8:21
+N       2       F|T     10000   3.940676        0.008495081431552197    0.009999000099990002    61      F:35;T:26
+N       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   3.388848        0.010411805999397191    0.0425957404259574      61      heteroDQ2DQ8:20;homoDQ2:20;homoDQ8:21
+
+
+
+df = pd.DataFrame({
+    "sample": ["S1", "S2", "S3"],
+    "group": ["WT", "KO", "WT"]
+})
+
+
+df = pd.DataFrame([
+    ["S1", "WT"],
+    ["S2", "KO"],
+    ["S3", "WT"]
+], columns=["sample", "group"])
+
+smap = {
+  "S1": "WT",
+  "S2": "KO",
+  "S3": "WT"
+}
+df["group"] = df["sample"].map(smap)
+
+smap = smap_df.set_index(args.sample_col)[args.group_col].to_dict()
+
+smap.get(key, default)
