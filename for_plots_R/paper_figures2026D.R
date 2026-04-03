@@ -7,6 +7,7 @@ library(scales)
 library(ggpubr)
 library(gt)
 library(dplyr)
+library(rstatix)
 
 #knitr::opts_chunk$set( message=FALSE, fig.width = 8, fig.height = 12, warning = FALSE)
 
@@ -16,11 +17,11 @@ source("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/for_plots_R/plot_cdr3_funct
 annotation_loc <- "/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/data/collated_info.csv"
 plot_dir <- "/Users/ania/Documents/DQ2DQ8/pipeline/260304"
 
-colors=c(DQ2="red",
-         DQ2DQ8="purple",
-         DQ8="blue")
+colors =c(DQ2="#FF4D4D",
+          DQ2DQ8="#B455E0",
+          DQ8="#2E86DE")
 
-colors_two <- c("darkgrey","darkgreen")
+colors_two <- c("#E69F00", "#009E73")
 
 
 cell_fullnames <- c(N = "Naive", E = "Memory")
@@ -48,7 +49,7 @@ anno <- anno %>%
 new_param_names <- c(total_templates="TRB_templates",
                      total_rearrangements="TRB_uniques",
                      unique_seqs="TRB_clean_uniques",
-                     exp_Shannon="Shannon_diversity",
+                     exp_Shannon="Shannon_diversity", 
                      inv_Simpson="inv_Simpson_index" )
 
 
@@ -217,11 +218,12 @@ which_often_enough <- vj_oof_anno%>%filter(param=="vFamilyName")%>%group_by(grou
 
 
 
-library(rstatix)
+
 vj_oof_anno%>%filter(param=="vFamilyName")%>%
 group_by(cells, group)%>%
   filter(all(table(genotype_short) >= 2)) %>% 
-  t_test(row_fraction ~ genotype_short,var.equal=FALSE,p.adjust.method="fdr",detailed=T)%>%filter(p*20*2<0.01)# Nothing stays significant after correcting for multiple testing; also for J
+  t_test(row_fraction ~ genotype_short,var.equal=FALSE,p.adjust.method="fdr",detailed=T)%>%
+  filter(p*20*2<0.01)# Nothing stays significant after correcting for multiple testing; also for J
 
 
 ###subsampled results
@@ -265,7 +267,8 @@ eff_size <- vj_subs_oof  %>%
   group_by(cells, vj)%>%
   cohens_d(value ~ geno)
 
-signif_vj_oof <- signif_vj_oof %>% add_column(cohens_d=eff_size$effsize)
+signif_vj_oof <- signif_vj_oof %>%
+  add_column(cohens_d=eff_size$effsize)
 
 vj_subs_oof%>%
   filter(vj%in%signif_vj_oof$vj)%>%
@@ -327,8 +330,96 @@ signif_vj_oof %>%
 # 8 TCRBV28    N     -0.00558    0.0324    0.0379 value DQ2    DQ8       20    21     -1.75 0.088  38.3 -0.0120    0.000871 T-test two.sided                  1
 # 9 TCRBV18    N     -0.00172    0.0254    0.0271 value DQ2    DQ8       20    21     -1.72 0.093  39.0 -0.00373   0.000299 T-test two.sided                  1
 # 10 TCRBJ02-06 N      0.00174    0.0375    0.0358 value DQ2    DQ8       20    21      1.72 0.097  29.5 -0.000332  0.00381  T-test two.sided                  1
-pval=0.05
+pval=0.01
 groups <- signif_vj_oof%>%.$vj%>%unique()%>%length()
 
-signif_vj_oof%>%ggplot(aes(x=p)) +geom_histogram(fill="white",col='darkgrey',breaks=c(seq(from=0, to=1,by=pval)) ) +geom_vline(xintercept=pval, lty=2)+geom_hline(yintercept=round(pval*groups*3), lty=2) +theme_bw()+facet_wrap(~cells, scale="free_y") +
-  ggtitle("VJ usage: genotypes comparison",subtitle = paste("Dashed lines:vertical sign pvalue",pval,", horizontal:expected hits"))
+signif_vj_oof%>%
+  filter(cells=="N")%>%
+  ggplot(aes(x=p)) +geom_histogram(fill="white",col='darkgrey',breaks=c(seq(from=0, to=1,by=pval)) ) +
+  geom_vline(xintercept=pval, lty=2)+geom_hline(yintercept=round(pval*groups*3), lty=2) +theme_bw()+facet_wrap(~cells, scale="free_y") +
+  ggtitle("VJ usage in OOF naives: genotypes comparison",subtitle = paste("Dashed lines:vertical sign pvalue",pval,", horizontal:expected hits"))
+ggsave(path = plot_dir, filename="nonprod_VJ_pvals_naive.png", width=7.5, height =3)
+
+vj_oof_forpca <- vj_oof%>%
+  filter(param%in%c("vFamilyName","jGeneName"))%>%
+  select(vj=group, row_fraction,sample_name) %>%
+  mutate(across(where(is.numeric), ~ replace_na(.x, 0)))%>%left_join(anno%>%select(c(cells,
+                                                                                     patient,
+                                                                                     genotype_short,
+                                                                                     sample_name=sample_short,source,
+                                                                                     anonym_patient_id,
+                                                                                     anonym_sample_id,
+                                                                                     geno,
+                                                                                     cells_long,
+                                                                                     stage))%>%unique(), by=c("sample_name")) %>%  mutate(geno=case_when(genotype_short =="homoDQ2" ~ "DQ2",
+                                                                                                                                                         genotype_short =="heteroDQ2DQ8" ~"DQ2DQ8",
+                                                                                                                                                         genotype_short =="homoDQ8" ~ "DQ8"))
+
+
+vj_oof_forpca  <- vj_oof_forpca%>%
+  select(vj, row_fraction,sample_name, geno, cells, stage)%>%
+  filter(cells=="N")%>%
+  pivot_wider(names_from = vj,values_from = row_fraction,values_fill = 0, id_cols = c(sample_name, geno, cells, stage))
+
+
+pca_mat <- vj_oof_forpca%>%select(c(sample_name, starts_with("TCRBV")))%>%
+  data.frame(row.names = "sample_name")%>%
+  as.matrix()
+
+pca_res   <- prcomp(pca_mat, scale. = TRUE)
+scores    <- as.data.frame(pca_res$x)
+scores$Group <- vj_oof_forpca$geno
+scores$stage <- vj_oof_forpca$stage
+
+ggplot(scores, aes(PC1, PC2, color = Group)) +
+  geom_point(alpha = 0.7, size=2) +
+  stat_ellipse(type = "t", linetype = 1) +
+  theme_minimal() +
+  labs(
+    x = paste0("PC1 (", round(summary(pca_res)$importance[2,1]*100,1), "%)"),
+    y = paste0("PC2 (", round(summary(pca_res)$importance[2,2]*100,1), "%)")
+  ) +coord_fixed() +scale_color_manual(values=colors)+
+  ggtitle("NAIVE OOF cells, VJ usage")
+ggsave(path = plot_dir, filename="nonprod_V_pca_naive_geno.png", width=7.5, height =6.5)
+
+ggplot(scores, aes(PC1, PC2, color = stage)) +
+  geom_point(alpha = 0.7, size=2) +
+  stat_ellipse(type = "t", linetype = 1) +
+  theme_minimal() +
+  labs(
+    x = paste0("PC1 (", round(summary(pca_res)$importance[2,1]*100,1), "%)"),
+    y = paste0("PC2 (", round(summary(pca_res)$importance[2,2]*100,1), "%)")
+  ) +coord_fixed() +scale_color_manual(values=colors_two)+
+  ggtitle("NAIVE OOF cells, VJ usage")
+ggsave(path = plot_dir, filename="nonprod_V_pca_naive_stage.png", width=7.5, height =6.5)
+
+
+####NAIVE lengths - for oof lengths are in nucleotides
+vj_oof_anno%>%
+  filter(param=="cdr3Length")%>%
+  mutate(len=as.integer(group),
+         geno=gsub(pat="h.*o",rep="",genotype_short),
+         type=c("stop","out")[as.integer(len%%3==0)+1],
+         stage=c("stage 1", "stage 3")[(source=="T")+1])%>%
+filter(cells=="N")%>%
+  ggplot(aes(x=len, y=row_fraction, col=geno, group=interaction(geno, len))) +geom_boxplot(outliers = FALSE)+
+scale_color_manual(values=colors)+ theme_bw()+facet_wrap(~type, scales="free",nrow=2)+
+  ggtitle("Length (nucleotides) of non-productive TRBs in naive cells")
+
+ggsave(path = plot_dir, filename="nonprod_length_naive_geno.png", width=12, height = 8)
+
+
+vj_oof_anno%>%
+  filter(param=="cdr3Length")%>%
+  mutate(len=as.integer(group),
+         geno=gsub(pat="h.*o",rep="",genotype_short),
+         type=c("stop","out")[as.integer(len%%3==0)+1],
+         stage=c("stage 1", "stage 3")[(source=="T")+1])%>%
+  filter(cells=="N")%>%
+  ggplot(aes(x=len, y=row_fraction, col=stage, group=interaction(stage, len))) +geom_boxplot(outliers = FALSE)+
+  scale_color_manual(values=colors_two)+ theme_bw()+facet_wrap(~type, scales="free",nrow=2)+
+  ggtitle("Length (nucleotides) of non-productive TRBs in naive cells")
+
+ggsave(path = plot_dir, filename="nonprod_length_naive_stage.png", width=12, height = 8)
+
+

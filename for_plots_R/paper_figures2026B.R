@@ -347,6 +347,9 @@ for(cells_sel in c("N","E")){
                                  add_to_title = paste(cell_fullnames[cells_sel],"cells"))
   ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL", cells_sel, sep="_"), ".png"))
   
+}
+  
+  for(cells_sel in c("N","E")){
   ##only significant ones
   
   #for Bonferroni correction
@@ -362,11 +365,14 @@ for(cells_sel in c("N","E")){
                     mutate(label_group_a_oo=gsub(pat="ho", rep="",label_group_a_oo), label_group_b_oo=gsub(pat="ho", rep="",label_group_b_oo) ),
                   height_by="cohens_d",
                   cols=cols, p_cutoff = p_cutoff/bonf, d_cutoff = d_cutoff,
-                  add_to_title = paste(cell_fullnames[cells_sel],"cells, Bonferroni:",bonf))
+                  add_to_title = paste(cell_fullnames[cells_sel],"cells, Bonferroni:",bonf),panel_height_mm = 500,cap_height = 6)
   
-  ggsave(plot=q, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"WL_sign", cells_sel, sep="_"), ".png"))
-  
-  
+  ggsave(plot=q, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.4, height = 4.5, filename = paste0(paste(test_version,"WL_sign", cells_sel, sep="_"), ".png"))
+  }
+
+
+
+  for(cells_sel in c("N","E")){  
   ###one length plots
   for(len_sel in 13:16){
     p <- plot_aa_composition_logo( results_imgt%>%filter(cells==cells_sel, length==len_sel)%>%

@@ -325,6 +325,7 @@ ggsave(file.path(pca_dir, "pca_memory_V.png"), width=7.5, height = 7)
 ##### ##### ##### ##### ##### ##### ##### ##### ##### ##### 
 
 results_imgt_WL  <- read_tsv(file.path(imgt_tests_loc, file.path(paste0(imgt_prefixes[1], imgt_tests[1],imgt_prefixes[2]),file))) 
+
 cols <-list(imgt = "imgt",
             aa = "aa",
             mean_a = "mean_group_a_eo",
@@ -337,7 +338,7 @@ cols <-list(imgt = "imgt",
 
 test_version <- "imgt_het_hom"
 min_freq = 0.01
-p_cutoff = 0.05
+p_cutoff = 0.01
 d_cutoff = 0.8
 q_cutoff = 0.1
 
@@ -383,45 +384,52 @@ for(cells_sel in c("N","E")){
 
 ##now plogo like
 
-imgt_range <- c(as.character(106:111),'111.1',"111.2","112.1",as.character(112:117))
 
+
+for(cells_sel in c("N","E")){
+  
+imgt_range <- c(as.character(106:111),'111.1',"111.2","112.1",as.character(112:117))
+p_cutoff=0.01
 bonf <- results_imgt_WL%>%filter(cells==cells_sel)%>%
   mutate(imgt =change_imgt_format(IMGT_position))%>%rowwise()%>%
   filter(imgt%in%c(imgt_range), max(mean_group_a_oo, mean_group_b_oo, mean_group_a_eo)>0.01)%>%
   rename("aa"=AA)%>%select(imgt, aa,ends_with("oo"))%>%group_by(imgt)%>%summarise(a=n_distinct(aa))%>%summarise(sum(a))%>%unlist()
 
-plot_plogo_like(df= results_imgt_WL%>%filter(cells==cells_sel)%>%
+plogo <- plot_plogo_like(df= results_imgt_WL%>%filter(cells==cells_sel)%>%
                    mutate(imgt =change_imgt_format(IMGT_position))%>%
                    filter(imgt%in%imgt_range)%>%
                    rename("aa"=AA)%>%select(imgt, aa,ends_with("eo"),ends_with("do"))%>%
                   mutate(label_group_a_eo=gsub(pat="he", rep="",label_group_a_eo), label_group_b_eo=gsub(pat="hom", rep="DQ2, DQ8",label_group_b_eo) ),
                 height_by="cohens_d",
-                 cols=cols, p_cutoff = p_cutoff/(bonf), d_cutoff = d_cutoff,
-                 add_to_title = paste(cell_fullnames[cells_sel],"cells, Bonferroni:", bonf))
+                 cols=cols, p_cutoff = p_cutoff, d_cutoff = d_cutoff,
+                 add_to_title = paste(cell_fullnames[cells_sel],"cells"),panel_height_mm = 500,cap_height = 6)
 
+
+
+ggsave(plot= plogo, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.4, height = 4.5, filename = paste0(paste(test_version,"WL_plogo", cells_sel, sep="_"), ".png"))
+
+
+##to check vals
+results_imgt_WL%>%filter(cells==cells_sel)%>%
+  mutate(imgt =change_imgt_format(IMGT_position))%>%
+  filter(imgt%in%imgt_range)%>%
+  rename("aa"=AA)%>%select(imgt, aa,ends_with("eo"),ends_with("do"),ends_with("po"))%>%
+  mutate(label_group_a_eo=gsub(pat="he", rep="",label_group_a_eo), label_group_b_eo=gsub(pat="hom", rep="DQ2, DQ8",label_group_b_eo) )%>%filter(p_value_eo <p_cutoff, p_value_do<p_cutoff, p_value_po<p_cutoff)%>%select(imgt,aa, starts_with("p_val"), starts_with("cohen"))
+
+
+}
 
 
 
 test_version <- "prop_het_hom"
-
-cols = list(
-  imgt     = "imgt",
-  prop       = "prop",
-  cells = "cells",
-  mean_a   = "mean_a_eo",
-  mean_b   = "mean_b_eo",
-  cohens_d = "cohens_d_eo",
-  p_value  = "p_value_eo",
-  q_value = "q_value_eo",
-  label_a  = "label_group_a_eo",
-  label_b  = "label_group_b_eo"
-)
-
-
-
 underlying_data_KF_WL <- read_tsv("/Users/ania/Documents/DQ2DQ8/pipeline/DQ2DQ8/results/aa_properties/KF/comb_aa_imgt_WL_subs_rows_KF_anno.tsv")
 
 main_pval_cutoff <- 0.05
+
+cell_fullnames <- c(N = "naive", E = "memory")
+
+
+
 
 prepared_KF_WL <- results_KF_WL_by_fact%>%
   mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells, imgt, prop,ends_with("eo"),ends_with("do"),ends_with("po"))%>%select(-c(contains('hotelling')))%>%
@@ -437,8 +445,8 @@ signif_KF_WL <- prepared_KF_WL%>%
          p_value_eo<main_pval_cutoff )
 
 
-#here I am actually plottingfiltered by pvals, not qvals!
-positions = c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113")
+#here I am actually plottingfiltered by pvals, not qvals! 
+positions = c("109","110","111", "111.1","111.2","112.2","112.1", "112",  "113")
 q_cutoff = main_pval_cutoff
 d_cutoff = 0.5
 
@@ -494,7 +502,7 @@ p <- underlying_data_KF_WL %>%
   ggplot(aes(x=genotype, y=value, group=genotype, col=genotype) )+
   geom_boxplot(outliers = FALSE)+
   geom_jitter(width=0.3, height =0)+
-  facet_wrap(imgt~prop, scales='free_y') +theme_bw() +scale_color_manual(values=colors)+guides(color="none")+ 
+  facet_wrap(imgt~prop, scales='free_y') + theme_bw() + scale_color_manual(values=colors)+guides(color="none")+ 
   stat_compare_means(
     aes(group = genotype),
     method = "wilcox.test",  comparisons = list(
@@ -510,11 +518,40 @@ p <- p+ ggtitle(paste("KF properties,", cell_fullnames[cells_sel], "cells, all l
 
 
 ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version,"_box_WL", cells_sel, sep="_"), ".png"))
-}
-###the same BUT as single plots
 
 
 
+######
+### the same BUT as single plots
+######
+plots <- underlying_data_KF_WL %>%
+  pivot_longer(cols = paste0('KF',1:10),names_to = 'prop')%>%
+  mutate(imgt=change_imgt_format(IMGT_position),
+         genotype=gsub(pat="h.D", rep="D",genotype))%>%
+  inner_join(., signif_KF_WL, by=c('cells','imgt', "prop"))%>%
+  filter(cells==cells_sel) |>
+  nest(.by = c(imgt, prop)) |>
+  mutate(plot = map(data, \(d) {ggplot(d, aes(x = genotype, y=value, group=genotype, col=genotype) ) +
+                      geom_boxplot(outliers = FALSE) +
+                      geom_jitter(width=0.3, height = 0) +
+                      theme_bw() + scale_color_manual(values=colors)+guides(color="none") + 
+                      stat_compare_means(
+                        aes(group = genotype),
+                        method = "wilcox.test",  comparisons = list(
+                          c("DQ2", "DQ2DQ8"),
+                          c("DQ2DQ8", "DQ8"))) +
+           ggtitle(paste("KF properties,", cell_fullnames[cells_sel], "cells, all lengths"), subtitle = paste("IMGT = ", imgt, "prop = ", prop))
+  })
+  )
+
+walk2(plots$plot, paste(cells_sel, plots$imgt, plots$prop, sep = "_"),
+      \(p, name)
+      ggsave(paste0(name, "box_WL.png"), p,width = 4, height = 4,path = file.path(plot_dir, file.path("cdr3", test_version) ))
+)
+
+
+
+######### separate lengths - TO correct
 
 
   for(len_sel in 13:16){
@@ -524,14 +561,14 @@ ggsave(plot=p, path = file.path(plot_dir, file.path("cdr3", test_version) ), dev
           filter(length==len_sel)%>%
           mutate(imgt =change_imgt_format(IMGT_position))%>%select(cells, imgt, prop,ends_with("eo"),ends_with("do"),ends_with("po"))%>%select(-c(contains('hotelling')))%>%
           mutate(label_group_a_eo="DQ2DQ8",label_group_b_eo="homo",label_group_b_po="DQ2",label_group_b_do="DQ8"),
-        positions = c("109","110","111", "111.1","111.2", "112", "112.1", "112.2", "113"),
+        positions = positions,
         
         q_cutoff   = q_cutoff,
         d_cutoff   = d_cutoff,
         cols = cols,
         cell_types = cells_sel,
-        color_b    = "#e41a1c",  
-        color_a    = "#377eb8"  ,  
+        color_a    = "#e41a1c",  
+        color_b    = "#377eb8"  ,  
         color_c = "purple",
         add_to_title =  paste(cell_fullnames[cells_sel],"cells, length=", len_sel))
     ggsave(plot = p, path = file.path(plot_dir, file.path("cdr3", test_version) ), device = "png",width = 7.25, height = 6.1, filename = paste0(paste(test_version, paste0("l",len_sel), cells_sel, sep="_"),".png"))

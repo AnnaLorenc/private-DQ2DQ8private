@@ -542,14 +542,20 @@ plot_aa_composition_logo <- function(
 
 plot_plogo_like <- function(
     df,
-    p_cutoff     = 0.05,
-    d_cutoff     = 0.5,
-    height_by    = c("neg_log10_p", "cohens_d"),
-    positions    = NULL,
-    aa_colors    = NULL,
-    min_freq     = 0.005,
-    cols         = list(),
-    add_to_title = ""
+    p_cutoff        = 0.05,
+    d_cutoff        = 0.5,
+    height_by       = c("neg_log10_p", "cohens_d"),
+    positions       = NULL,
+    aa_colors       = NULL,
+    min_freq        = 0.005,
+    cols            = list(),
+    add_to_title    = "",
+    panel_height_mm = 100,  # panel height in mm passed to ggsave(height=...,units="mm")
+                            # Controls text size: size = d * panel_height_mm /
+                            # (2 * y_range * cap_height)  so visual cap height =
+                            # data-unit slot → letters stack flush with no gaps.
+    cap_height      = 0.7   # cap-height fraction of font em-size (≈ 0.70–0.72 for
+                            # sans-serif). Tune if gaps/overlaps remain.
 ) {
   library(ggplot2)
   library(dplyr)
@@ -594,10 +600,10 @@ plot_plogo_like <- function(
     return(ggplot() + theme_void())
   }
 
-  # ---- canonical position order ----
-  present_pos <- unique(df$imgt)
-  ordered_pos <- .imgt_order[.imgt_order %in% present_pos]
-  extra_pos   <- setdiff(present_pos, ordered_pos)
+  # ---- canonical position order (all requested positions, regardless of sig AAs) ----
+  all_requested_pos <- if (!is.null(positions)) positions else unique(df$imgt)
+  ordered_pos <- .imgt_order[.imgt_order %in% all_requested_pos]
+  extra_pos   <- setdiff(all_requested_pos, ordered_pos)
   ordered_pos <- c(ordered_pos, extra_pos)
 
   # ---- build list of all p_value / cohens_d column pairs ----
@@ -642,73 +648,87 @@ plot_plogo_like <- function(
   group_a <- unique(df$label_group_a_oo)[1]
   group_b <- unique(df$label_group_b_oo)[1]
 
-  # ---- stack letters within each (imgt, direction): tallest closest to axis ----
+  # ---- stack letters in Cohen's D data units --------------------------------
+  # Tight stacking derivation:
+  #   visual cap height  = size_val (mm) * cap_height
+  #   slot height in mm  = height   (du) * panel_height_mm / (2 * y_bot)
+  #   for flush stacking: set them equal →
+  #     size_val = height * panel_height_mm / (2 * y_bot * cap_height)
+  #
+  # vjust=0 (pos) puts the BASELINE at y_anchor=ymin → axis-side edge at 0.
+  # vjust=1 (neg) puts the CAP TOP   at y_anchor=ymax → axis-side edge at 0.
+  # Baseline of letter k+1 = cap top of letter k → no gap, no overlap.
   df_agg <- df_agg |>
     group_by(imgt, direction) |>
     arrange(desc(height), .by_group = TRUE) |>
     mutate(
-      cum_h  = cumsum(height),
-      prev_h = lag(cum_h, default = 0),
-      ymin   = if_else(direction == "pos",  prev_h,  -cum_h),
-      ymax   = if_else(direction == "pos",  cum_h,   -prev_h),
-      ymid   = (ymin + ymax) / 2
+      cum_h     = cumsum(height),
+      prev_h    = lag(cum_h, default = 0),
+      ymin      = if_else(direction == "pos",  prev_h,  -cum_h),
+      ymax      = if_else(direction == "pos",  cum_h,   -prev_h),
+      y_anchor  = if_else(direction == "pos",  ymin,     ymax),
+      vjust_val = if_else(direction == "pos",  0,        1)
     ) |>
     ungroup() |>
-    mutate(color = aa_colors[aa],
-           color = if_else(is.na(color), "#999999", color))
+    mutate(
+      color = aa_colors[aa],
+      color = if_else(is.na(color), "#999999", color)
+    )
 
-  # symmetric y-limits so both panels are equal height
   y_range <- max(abs(df_agg$ymax), abs(df_agg$ymin), na.rm = TRUE)
+
+  # Legend: D = 0.5 / 1 / 2 stacked at bottom-right, smallest at bottom.
+  ref_ds       <- c(0.5, 1, 2)
+  legend_total <- sum(ref_ds)          # 3.5 data units
+  y_bot        <- max(y_range, legend_total)
+
+  # text size formula — same for data letters and legend labels
+  size_fn  <- function(d) d * panel_height_mm / (2 * y_bot * cap_height)
+
+  df_agg   <- df_agg |> mutate(size_val = size_fn(height))
+
+  ref_prev  <- c(0, cumsum(ref_ds[-length(ref_ds)]))
+  ref_sizes <- size_fn(ref_ds)
+  ref_y0    <- -y_bot + ref_prev      # baselines for legend (vjust=0)
+
+  ref_legend <- list(
+  
+    annotate("text", x = Inf, y = ref_y0[2], label = "D=1",
+             size = ref_sizes[2], colour = "grey60",
+             hjust = 1.1, vjust = 0, fontface = "bold")
+   
+  )
 
   ggplot(df_agg, aes(x = imgt)) +
     geom_text(
-      aes(x = imgt, y = ymid, label = aa, colour = color, size = height),
+      aes(x = imgt, y = y_anchor, label = aa,
+          colour = color, size = size_val, vjust = vjust_val),
       fontface = "bold",
       family   = "sans"
     ) +
-    scale_size_continuous(range = c(3, 22), guide = "none") +
+    scale_size_identity(guide = "none") +
     scale_colour_identity() +
-    scale_x_discrete() +
+    scale_x_discrete(drop = FALSE) +
     geom_hline(yintercept = 0, linewidth = 0.7, colour = "grey20") +
-    { if (height_by == "cohens_d") {
-        h_min    <- min(df_agg$height, na.rm = TRUE)
-        h_max    <- max(df_agg$height, na.rm = TRUE)
-        size_ref <- if (h_max > h_min)
-          3 + (1 - h_min) / (h_max - h_min) * (22 - 3)
-        else 12
-        size_ref <- max(3, min(22, size_ref))
-        list(
-          annotate("text", x = Inf, y =  0.5, label = "A",
-                   size = size_ref, colour = "grey75", hjust = 1.2,
-                   fontface = "bold", family = "sans"),
-          annotate("text", x = Inf, y = -0.5, label = "A",
-                   size = size_ref, colour = "grey75", hjust = 1.2,
-                   fontface = "bold", family = "sans"),
-          annotate("text", x = Inf, y =  0,   label = "|d|=1",
-                   size = 2.8, colour = "grey55", hjust = 1.1,
-                   vjust = 0.5)
-        )
-      }
-    } +
+    ref_legend +
     annotate(
-      "text", x = ordered_pos[1], y =  y_range,
+      "text", x = ordered_pos[1], y =  y_bot,
       label = group_a,
       hjust = 0, vjust = 1.2, size = 3.5, colour = "grey30", fontface = "italic"
     ) +
     annotate(
-      "text", x = ordered_pos[1], y = -y_range,
+      "text", x = ordered_pos[1], y = -y_bot,
       label = group_b,
       hjust = 0, vjust = -0.2, size = 3.5, colour = "grey30", fontface = "italic"
     ) +
-    coord_cartesian(ylim = c(-y_range, y_range)) +
+    coord_cartesian(ylim = c(-y_bot, y_bot), clip = "off") +
     labs(
       x        = "IMGT position",
       y        = NULL,
-      title    = paste0("AA enrichment logo: ", group_a, " (above) vs ", group_b, " (below)", add_to_title),
+      title    = paste0("AA enrichment logo: ", group_a, " vs ", group_b,"; ", add_to_title),
       subtitle = paste0(
         "Letter size = ", if (height_by == "neg_log10_p") "-log10(p)" else "|Cohen's D|",
-        "  |  shown: p \u2264 ", format_pval(p_cutoff), ", |D| \u2265 ", d_cutoff,
-        "  |  direction = sign(Cohen's D)"
+        "  |  shown: p \u2264 ", format_pval(p_cutoff), ", |D| \u2265 ", d_cutoff
       )
     ) +
     theme_classic(base_size = 12) +
