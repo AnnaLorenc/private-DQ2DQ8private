@@ -371,16 +371,17 @@ scores    <- as.data.frame(pca_res$x)
 scores$Group <- vj_oof_forpca$geno
 scores$stage <- vj_oof_forpca$stage
 
-ggplot(scores, aes(PC1, PC2, color = Group)) +
-  geom_point(alpha = 0.7, size=2) +
+ggplot(scores, aes(PC1, PC2, color = Group, shape=Group)) +
+  geom_point(alpha = 0.7, size=3) +
   stat_ellipse(type = "t", linetype = 1) +
-  theme_minimal() +
+  theme_classic() +
   labs(
     x = paste0("PC1 (", round(summary(pca_res)$importance[2,1]*100,1), "%)"),
     y = paste0("PC2 (", round(summary(pca_res)$importance[2,2]*100,1), "%)")
   ) +coord_fixed() +scale_color_manual(values=colors)+
-  ggtitle("NAIVE OOF cells, VJ usage")
-ggsave(path = plot_dir, filename="nonprod_V_pca_naive_geno.png", width=7.5, height =6.5)
+  ggtitle("NAIVE OOF cells, VJ usage")+
+  scale_shape_manual(values=c(19,8,19))
+ggsave(path = plot_dir, filename="nonprod_V_pca_naive_geno.png",  width=7.5, height = 7)
 
 ggplot(scores, aes(PC1, PC2, color = stage)) +
   geom_point(alpha = 0.7, size=2) +
@@ -399,21 +400,21 @@ vj_oof_anno%>%
   filter(param=="cdr3Length")%>%
   mutate(len=as.integer(group),
          geno=gsub(pat="h.*o",rep="",genotype_short),
-         type=c("stop","out")[as.integer(len%%3==0)+1],
+         type=c("out","stop")[as.integer(len%%3==0)+1],
          stage=c("stage 1", "stage 3")[(source=="T")+1])%>%
-filter(cells=="N")%>%
+filter(cells=="N",len>=30, len<=66, type=="out")%>%
   ggplot(aes(x=len, y=row_fraction, col=geno, group=interaction(geno, len))) +geom_boxplot(outliers = FALSE)+
-scale_color_manual(values=colors)+ theme_bw()+facet_wrap(~type, scales="free",nrow=2)+
+scale_color_manual(values=colors)+ theme_classic()+
   ggtitle("Length (nucleotides) of non-productive TRBs in naive cells")
 
-ggsave(path = plot_dir, filename="nonprod_length_naive_geno.png", width=12, height = 8)
+ggsave(path = plot_dir, filename="nonprod_length_naive_geno.png",  width = 7.5, height = 6)
 
 
 vj_oof_anno%>%
   filter(param=="cdr3Length")%>%
   mutate(len=as.integer(group),
          geno=gsub(pat="h.*o",rep="",genotype_short),
-         type=c("stop","out")[as.integer(len%%3==0)+1],
+         type=c("out","stop")[as.integer(len%%3==0)+1],
          stage=c("stage 1", "stage 3")[(source=="T")+1])%>%
   filter(cells=="N")%>%
   ggplot(aes(x=len, y=row_fraction, col=stage, group=interaction(stage, len))) +geom_boxplot(outliers = FALSE)+

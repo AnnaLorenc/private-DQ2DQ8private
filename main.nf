@@ -68,6 +68,7 @@ include { MERGE_SAMPLES as MERGE_AMINO_VFAM_NONPROD } from './modules/merge_samp
 include {SUBSAMPLE_FROM_MERGED as SUBSAMPLE_FROM_MERGED_NONPROD } from './modules/subsample_from_merged.nf'
 include {COMPUTE_FREQS_SUBSAMPLED as COMPUTE_FREQS_SUBSAMPLED_NONPROD} from './modules/compute_freqs_subsampled.nf'
 include {COMBINE_FREQS_SUBSAMPLED as COMBINE_FREQS_SUBSAMPLED_NONPROD } from './modules/combine_freqs_subsampled.nf'
+include {AD_LENGTH_DISTRIBUTION } from './modules/ad_length_distribution.nf'
 
 // Print a header for your pipeline 
 log.info """\
@@ -458,6 +459,45 @@ workflow {
 	COMBINE_FREQS_SUBSAMPLED_NONPROD(nonprod_combine_freqs_subsampled_input_ch)
 
 
+
+
+	//Anderson tests for length differences
+
+	    // Define common parameters
+    def sample_col_val = params.sample_col ?: 'shortname'
+    def n_perm_val = params.N ?: 10000
+	def type = "prod"
+    params.annotation_file = "${projectDir}/data/collated_info.csv"
+    // Create a channel with your freqs_dir (this would come from an earlier process)
+    freqs_dir_ch = channel.fromPath("${params.outdir}/freqs_subsampled/productive", type: 'dir')
+    
+    // Define your different analysis configurations
+    // Format: [group_col, cells, split_col, groups]
+    def analysis_configs = channel.of(
+        ['genotype_short', 'N', null, null],                    // ad_length_results_N_geno.tsv
+        ['genotype_short', 'N', 'source', null],                // ad_length_results_N_geno_byTF.tsv
+        ['source', 'E', 'genotype_short', ['T', 'F']],          // ad_length_results_E_TF_bygeno.tsv
+        ['source', 'N', null, null],                             // ad_length_results_N_TF.tsv
+        ['genotype_short', 'E', null, null],                    // ad_length_results_E_geno.tsv
+        ['genotype_short', 'E', 'source', null]                 // ad_length_results_E_geno_byTF.tsv
+    )
+    
+    // Run the process for each configuration
+    AD_LENGTH_DISTRIBUTION(
+        freqs_dir_ch,
+        analysis_configs.map { cfg -> cfg[0] },  // group_col
+        channel.of(sample_col_val),
+        analysis_configs.map { cfg -> cfg[1] },  // cells
+        channel.of(n_perm_val),
+        analysis_configs.map { cfg -> [cfg[2], cfg[3]] },  // [split_col, groups]
+		channel.of(type),
+		params.annotation_file
+    )
+    
+    // Collect all results
+    AD_LENGTH_DISTRIBUTION.out.results.collect().view { files ->
+        "Generated AD length distribution results: ${files}"
+    }
 
 
 

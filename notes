@@ -753,3 +753,85 @@ df["group"] = df["sample"].map(smap)
 smap = smap_df.set_index(args.sample_col)[args.group_col].to_dict()
 
 smap.get(key, default)
+
+###Andersn-Darlong for OOF
+
+### Anderson-Darling test:
+
+# 3-group AD (all genotypes together), Naive
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/nonproductive \
+  --sample_map data/collated_info.csv \
+  --group_col genotype_short \
+  --sample_col shortname \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_geno_oof.tsv
+
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/nonproductive \
+  --sample_map data/collated_info.csv \
+  --group_col genotype_short \
+  --split_col source \
+  --sample_col shortname \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_geno_byTF_oof.tsv
+
+
+# AD for T vs F within each genotype (split)
+
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/nonproductive \
+  --sample_map data/collated_info.csv \
+  --group_col source \
+  --sample_col shortname \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_TF_oof.tsv
+
+######
+# 3-group AD (all genotypes together), Naive
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/nonproductive \
+  --sample_map data/collated_info.csv \
+  --group_col genotype_short \
+  --sample_col shortname \
+  --cells E \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_E_geno_oof.tsv
+
+
+
+# AD for T vs F within each genotype (split)
+python bin/ad_length_distribution.py \
+  --freqs_dir results/freqs_subsampled/nonproductive \
+  --sample_map data/collated_info.csv \
+  --group_col source \
+  --sample_col shortname \
+  --split_col genotype_short \
+  --groups T F \
+  --cells N \
+  --n_perm 10000 \
+  --output results_man/ad_length_results_N_TF_bygeno_oof.tsv
+
+
+awk 'FNR==1 && NR!=1 {next} 1' results_man/ad_length_results_*by*oof* 
+cells   genotype_short  n_groups        groups  n_perm  ad_stat ad_pvalue_asymptotic    ad_pvalue_permutation   n_samples_total n_per_group
+N       heteroDQ2DQ8    2       T|F     10000   111.913394      0.001   0.17838216178382163     20      T:10;F:10
+N       homoDQ2 2       T|F     10000   25.392925       0.001   0.6124387561243876      20      T:10;F:10
+N       homoDQ8 2       T|F     10000   2.568879        0.028791064460645922    0.9046095390460954      21      T:6;F:15
+N       F       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   25.598696       0.001   0.7130286971302869      35      heteroDQ2DQ8:10;homoDQ2:10;homoDQ8:15
+N       T       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   45.912348       0.001   0.7046295370462954      26      heteroDQ2DQ8:10;homoDQ2:10;homoDQ8:6
+(base) ania@Annas-MacBook-Pro DQ2DQ8 % awk -F'\t' '
+FNR==1 {
+  keep = (NF==9)
+  if (!keep) nextfile
+  if (seen_header) next
+  seen_header=1
+}
+keep
+' results_man/ad_length_results_*oof*
+cells   n_groups        groups  n_perm  ad_stat ad_pvalue_asymptotic    ad_pvalue_permutation   n_samples_total n_per_group
+N       2       F|T     10000   72.953318       0.001   0.27487251274872515     61      F:35;T:26
+N       3       heteroDQ2DQ8|homoDQ2|homoDQ8    10000   24.581831       0.001   0.782021797820218       61      heteroDQ2DQ8:20;homoDQ2:20;homoDQ8:21
